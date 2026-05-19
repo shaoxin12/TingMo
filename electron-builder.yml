@@ -21,7 +21,9 @@ win:
   icon: assets/icons/icon.ico
 nsis:
   oneClick: false
+  perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: 听墨
+  shortcutName: TingMo
+  artifactName: "TingMo-Setup-${version}.${ext}"
