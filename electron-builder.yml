@@ -7,14 +7,12 @@ directories:
 files:
   - dist
   - dist-electron
-  - models
   - node_modules
   - package.json
 asarUnpack:
   - "node_modules/koffi/**"
   - "node_modules/onnxruntime-node/**"
   - "**/*.node"
-  - "models/**"
 win:
   target:
     - target: nsis
@@ -27,6 +25,3 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: 听墨
-extraResources:
-  - from: models/
-    to: models/

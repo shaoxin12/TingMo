@@ -3,9 +3,11 @@ import { join } from 'path';
 import { createTray, updateTrayState } from './tray';
 import { startHotkey, stopHotkey, setHotkeyCallback, waitForHotkeyRelease } from './hotkey';
 import { injectText } from './text-inserter';
+import { ensureModel } from '../src/services/model-downloader';
 
 let floatingWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let downloadWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
 type VoiceState = 'idle' | 'recording' | 'recognizing' | 'success' | 'error';
@@ -32,9 +34,14 @@ async function initRecognition(): Promise<void> {
     const { SenseVoiceORTProvider } = require('../src/services/sensevoice-ort');
     const fs = require('fs');
 
-    const appPath = app.getAppPath();
-    const modelPath = join(appPath, 'models/sensevoice-small/model.onnx');
-    const tokensPath = join(appPath, 'models/sensevoice-small/tokens.json');
+    const modelDir = join(app.getPath('userData'), 'models');
+    const modelPath = join(modelDir, 'sensevoice-small', 'model.onnx');
+    const tokensPath = join(modelDir, 'sensevoice-small', 'tokens.json');
+
+    // Download model on first launch if missing
+    if (!fs.existsSync(modelPath)) {
+      await downloadModel(modelDir);
+    }
 
     console.log('[Main] Loading SenseVoice model from:', modelPath);
     recognitionProvider = new SenseVoiceORTProvider(modelPath, tokensPath);
@@ -44,6 +51,60 @@ async function initRecognition(): Promise<void> {
     console.error('[Main] Failed to init recognition:', err.message);
     recognitionReady = false;
   }
+}
+
+function createDownloadWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 360,
+    height: 120,
+    resizable: false,
+    frame: false,
+    alwaysOnTop: true,
+    center: true,
+    title: '',
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+  win.loadURL(`data:text/html,
+    <html><body style="margin:0;font-family:-apple-system,Segoe UI,sans-serif;
+    background:#fff;display:flex;align-items:center;justify-content:center;height:100vh;
+    border:3px solid #000;">
+    <div style="text-align:center">
+    <p id="msg" style="font-size:14px;font-weight:700;color:#000;margin:0 0 8px">
+    正在下载语音模型...</p>
+    <div id="bar" style="width:280px;height:6px;background:#eee;margin:0 auto">
+    <div id="fill" style="width:0%;height:100%;background:#000"></div></div></div>
+    <script>
+    window.tingmo.onModelProgress(function(p) {
+      document.getElementById('msg').textContent =
+        p.stage==='downloading'?'下载模型 '+p.percent+'%':
+        p.stage==='extracting'?'解压中...':'';
+      document.getElementById('fill').style.width=p.percent+'%';
+    });
+    </script></body></html>`);
+  return win;
+}
+
+async function downloadModel(modelDir: string): Promise<void> {
+  downloadWindow = createDownloadWindow();
+  downloadWindow.show();
+
+  await ensureModel(modelDir, (p) => {
+    if (downloadWindow && !downloadWindow.isDestroyed()) {
+      downloadWindow.webContents.send('model:progress', p);
+    }
+    if (p.stage === 'done') {
+      setTimeout(() => {
+        if (downloadWindow && !downloadWindow.isDestroyed()) {
+          downloadWindow.close();
+          downloadWindow = null;
+        }
+      }, 600);
+    }
+  });
 }
 
 function createFloatingWindow(): BrowserWindow {

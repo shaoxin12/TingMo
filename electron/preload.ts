@@ -45,6 +45,13 @@ const api = {
   retryInject: (text: string) => ipcRenderer.invoke('voice:retry-inject', text),
   copyText: (text: string) => ipcRenderer.invoke('voice:copy-text', text),
 
+  // Model download progress
+  onModelProgress: (callback: (data: { stage: string; percent: number }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { stage: string; percent: number }) => callback(data);
+    ipcRenderer.on('model:progress', handler);
+    return () => ipcRenderer.removeListener('model:progress', handler);
+  },
+
   // Send audio buffer to main process for transcription
   transcribe: (audioBuffer: ArrayBuffer, language?: string) => ipcRenderer.invoke('voice:transcribe', audioBuffer, language),
 };
