@@ -1,11 +1,11 @@
-// Main-process model downloader — downloads Paraformer-large model on first launch
+// Main-process model downloader — downloads Paraformer + CT-Transformer on first launch
 
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-const MODEL_URL = 'https://github.com/yangshaoxin12/tingmo/releases/download/v0.1.0/funasr-paraformer-large.tar.gz';
+const MODEL_URL = 'https://github.com/shaoxin12/tingmo/releases/download/v0.2/tingmo-models-v0.2.tar.gz';
 
 export interface DownloadProgress {
   stage: 'downloading' | 'extracting' | 'done' | 'error';
@@ -60,19 +60,21 @@ export function ensureModel(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const funasrDir = path.join(modelDir, 'funasr');
-    const modelFile = path.join(funasrDir, 'paraformer-large-int8.onnx');
+    const asrModel = path.join(funasrDir, 'paraformer-large-int8.onnx');
+    const punctModel = path.join(funasrDir, 'ct-transformer.onnx');
 
-    if (fs.existsSync(modelFile)) {
+    // Both models present — skip download
+    if (fs.existsSync(asrModel) && fs.existsSync(punctModel)) {
       onProgress({ stage: 'done', percent: 100 });
-      resolve(modelFile);
+      resolve(asrModel);
       return;
     }
 
     fs.mkdirSync(funasrDir, { recursive: true });
-    const tmpFile = path.join(modelDir, 'funasr-paraformer-large.tar.gz');
+    const tmpFile = path.join(modelDir, 'tingmo-models-v0.2.tar.gz');
 
     onProgress({ stage: 'downloading', percent: 0 });
-    request(MODEL_URL, onProgress, resolve, reject, funasrDir, tmpFile, modelFile);
+    request(MODEL_URL, onProgress, resolve, reject, funasrDir, tmpFile, asrModel);
   });
 }
 

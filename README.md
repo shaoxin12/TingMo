@@ -25,7 +25,7 @@
 
 从 [Releases](https://github.com/shaoxin12/tingmo/releases) 下载 `TingMo-Setup-0.2.exe`。
 
-首次启动自动下载 ASR 模型（~228MB）。标点模型（~73MB INT8）为可选，单独下载放入 `%APPDATA%/tingmo/models/funasr/`。
+首次启动自动下载全部模型文件（~304MB）。
 
 ## 使用
 
@@ -67,8 +67,8 @@
 | `paraformer-large-int8.onnx` | 228 MB | ✅ |
 | `tokens.json` | 60 KB | ✅ |
 | `am.mvn` | 11 KB | ✅ |
-| `ct-transformer.onnx` | 73 MB | 可选（INT8 量化）|
-| `punct-tokens.json` | 4 MB | 可选 |
+| `ct-transformer.onnx` | 73 MB | ✅（INT8 标点）|
+| `punct-tokens.json` | 4 MB | ✅（标点词表）|
 
 ## 开发
 

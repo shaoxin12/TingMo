@@ -107,8 +107,8 @@ src/
 | `tokens.json` | 60KB | ASR 词表 (8404 tokens) | ✅ |
 | `am.mvn` | 11KB | CMVN 归一化参数 | ✅ |
 | `config.json` | 1KB | 模型配置 | ✅ |
-| `ct-transformer.onnx` | 73MB | CT-Transformer 标点 (INT8) | 可选 |
-| `punct-tokens.json` | 4MB | 标点词表 (272727 tokens) | 可选 |
+| `ct-transformer.onnx` | 73MB | CT-Transformer 标点 (INT8) | ✅ |
+| `punct-tokens.json` | 4MB | 标点词表 (272727 tokens) | ✅ |
 
 ## 设置窗口
 
