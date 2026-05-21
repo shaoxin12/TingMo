@@ -1,77 +1,115 @@
-# TingMo 听墨
+# 听墨 TingMo
 
-**Desktop AI Voice Input for Windows** — press Right Alt, speak, release, and your speech becomes text at the cursor. Fully offline ASR with optional LLM refinement.
+> AI 赋能的 Windows 桌面语音输入法 | 🎤 Vibe Coding 项目
+
+*[English](#english) is available below.*
 
 ![version](https://img.shields.io/badge/version-0.2-orange)
 ![platform](https://img.shields.io/badge/platform-Windows%20x64-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
+![vibe](https://img.shields.io/badge/vibe%20coding-yes-ff69b4)
 
-## Features
+按下快捷键开始说话，松开后语音自动转文字注入光标位置。支持纯离线运行，也可接入 LLM 进行口语润色。
 
-- **Local ASR** — Paraformer-large INT8 ONNX, 228MB, runs entirely offline
-- **Smart Punctuation** — CT-Transformer model restores `，。？！、` from raw text
-- **LLM Refinement** — Optional AI polish: removes filler words, auto-structures, preserves custom vocabulary
-- **Translation Mode** — Right Alt + Right Shift to translate recognized speech
-- **Dictionary** — Add custom terms for fuzzy correction and LLM preservation
-- **5-Language UI** — 简体中文 / 繁體中文 / English / 日本語 / 한국어
-- **Minimal UI** — Floating capsule (140×48px) appears only during recording
+## 特性
 
-## Installation
+- **本地 ASR** — Paraformer-large INT8 ONNX，228MB，完全离线
+- **智能标点** — CT-Transformer 模型自动恢复 `，。？！、`
+- **LLM 润色**（可选）— 去口语填充词 + 自动结构化 + 保留专属词汇
+- **翻译模式** — 识别后自动翻译为目标语言
+- **个性词典** — 添加专属词汇，模糊纠错 + LLM 上下文保留
+- **5 语言界面** — 简体中文 / 繁體中文 / English / 日本語 / 한국어
+- **极简交互** — 浮窗胶囊仅在录音时出现，无按钮
 
-Download `TingMo-Setup-0.2.exe` from [Releases](https://github.com/yangshaoxin12/tingmo/releases).
+## 安装
 
-First launch downloads the ASR model (~230MB) automatically. Punctuation model (~280MB) is optional — download separately and place in `%APPDATA%/tingmo/models/funasr/`.
+从 [Releases](https://github.com/shaoxin12/tingmo/releases) 下载 `TingMo-Setup-0.2.exe`。
 
-## How to Use
+首次启动自动下载 ASR 模型（~230MB）。标点模型（~280MB）为可选，单独下载放入 `%APPDATA%/tingmo/models/funasr/`。
 
-| Action | Keys |
-|--------|------|
-| Voice input | Press **Right Alt** → speak → press **Right Alt** again |
-| Translate | Hold **Right Shift** + press **Right Alt** → speak → press **Right Alt** |
-| Settings | Right-click tray icon → Settings |
+## 使用
 
-## LLM Refinement (Optional)
+| 操作 | 方式 |
+|------|------|
+| 语音输入 | 按下快捷键 → 说话 → 再次按下 |
+| 翻译 | 按住翻译修饰键 + 按下快捷键 |
+| 设置 | 右键系统托盘图标 → 设置 |
 
-1. Open Settings → AI Refine section
-2. Enter your OpenAI-compatible API Key (supports GPT-4o-mini, Claude, DeepSeek, Qwen)
-3. Enable "Refine"
-4. Your speech will be polished: filler words removed, auto-structured, properly punctuated
+> 快捷键可在设置中自定义，默认语音键为右 Alt。
 
-Without LLM, ASR text is injected directly (with punctuation from the local CT-Transformer model).
+## LLM 润色（可选）
 
-## Tech Stack
+1. 设置 → AI 润色区域
+2. 填入 OpenAI 兼容 API Key（支持 GPT-4o-mini / Claude / DeepSeek / 通义千问）
+3. 开启"启用润色"
 
-| Layer | Tech |
-|-------|------|
-| Framework | Electron 33 + React 18 + TypeScript |
+无需 LLM 时，ASR + CT-Transformer 标点结果直接注入，离线可用。
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 框架 | Electron 33 + React 18 + TypeScript |
 | ASR | Paraformer-large INT8 ONNX (FunASR) |
-| Punctuation | CT-Transformer ONNX (sherpa-onnx) |
-| LLM | OpenAI-compatible API (GPT-4o-mini / Claude / DeepSeek / Qwen) |
-| Audio | Web Audio API → 16kHz resample → WAV |
-| Injection | Win32 `SendInput` + `KEYEVENTF_UNICODE` (koffi FFI) |
-| State | Zustand |
-| i18n | Custom React Context, 5 languages |
+| 标点 | CT-Transformer ONNX (sherpa-onnx) |
+| LLM | OpenAI 兼容 API |
+| 音频 | Web Audio API → 16kHz 重采样 → WAV |
+| 注入 | Win32 `SendInput` + `KEYEVENTF_UNICODE` (koffi FFI) |
+| 状态 | Zustand |
+| i18n | React Context，5 语言 |
 
-## Model Files
+## 模型文件
 
-Placed in `%APPDATA%/tingmo/models/funasr/`:
+存放于 `%APPDATA%/tingmo/models/funasr/`：
 
-| File | Size | Required |
-|------|------|----------|
-| `paraformer-large-int8.onnx` | 228 MB | Yes |
-| `tokens.json` | 60 KB | Yes |
-| `am.mvn` | 11 KB | Yes |
-| `ct-transformer.onnx` | 281 MB | Optional (punctuation) |
-| `punct-tokens.json` | 4 MB | Optional (punctuation) |
+| 文件 | 大小 | 必需 |
+|------|------|------|
+| `paraformer-large-int8.onnx` | 228 MB | ✅ |
+| `tokens.json` | 60 KB | ✅ |
+| `am.mvn` | 11 KB | ✅ |
+| `ct-transformer.onnx` | 281 MB | 可选 |
+| `punct-tokens.json` | 4 MB | 可选 |
 
-## Development
+## 开发
 
 ```bash
 npm install
-npm run dev            # Terminal 1: Vite dev server
-npm run electron:dev   # Terminal 2: Build + launch Electron
+npm run dev            # 终端 1: Vite
+npm run electron:dev   # 终端 2: 构建 + Electron
 ```
+
+## 关于
+
+本项目为 Vibe Coding 作品——在 AI 辅助下快速迭代开发。欢迎提 Issue 和 PR。
 
 ## License
 
 MIT
+
+---
+
+## English {#english}
+
+TingMo is an AI-powered voice input app for Windows. Press a hotkey, speak, and your words appear at the cursor. Works fully offline with optional LLM refinement.
+
+### Features
+
+- **Local ASR** — Paraformer-large INT8 ONNX, runs offline
+- **Punctuation** — CT-Transformer model adds `，。？！、`
+- **LLM Refine** (optional) — Removes filler words, auto-structures, preserves custom terms
+- **Translation** — ASR → translate to target language
+- **Dictionary** — Add custom terms for fuzzy correction and LLM context
+- **5-language UI** — 简体/繁體/English/日本語/한국어
+- **Minimal UI** — Floating capsule, no buttons
+
+### Install
+
+Download `TingMo-Setup-0.2.exe` from [Releases](https://github.com/shaoxin12/tingmo/releases).
+
+### Use
+
+Press hotkey → speak → press again. Right-click tray for settings. Hotkeys are customizable.
+
+### Vibe Coding
+
+This project was built through vibe coding — rapid AI-assisted development. Issues and PRs welcome.
