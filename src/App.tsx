@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { I18nProvider } from './i18n/context';
 import { useSettingsStore } from './store/settings';
 import { FloatingWindow } from './components/FloatingWindow';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { SettingsWindow } from './components/Settings/SettingsWindow';
 import { OnboardingWizard } from './components/Settings/OnboardingWizard';
 

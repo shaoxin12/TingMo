@@ -23,13 +23,13 @@ export class FunASRCloudProvider implements IRecognitionProvider {
     try {
       const ctrl = new AbortController();
       setTimeout(() => ctrl.abort(), 3000);
-      const res = await fetch(`${this.endpoint}/api/status`, {
+      const res = await fetch(`${this.baseUrl}/api/status`, {
         method: 'GET',
         signal: ctrl.signal,
       });
       if (res.ok) {
         this.isReady = true;
-        console.log('[FunASR-Cloud] Server reachable at', this.endpoint);
+        console.log('[FunASR-Cloud] Server reachable at', this.baseUrl);
         return true;
       }
     } catch {

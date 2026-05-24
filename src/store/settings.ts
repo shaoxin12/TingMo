@@ -161,11 +161,3 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 }));
 
-function scheduleSave(get: () => SettingsState): void {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const state = get();
-    if (!state._hydrated) return;
-    window.tingmo?.saveAllSettings(getPersistable(state));
-  }, 500);
-}
