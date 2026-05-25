@@ -769,6 +769,9 @@ html, body, #root {
   color: #fff;
   font-weight: 700;
 }
+.nb-select-opt.active .nb-provider-icon {
+  filter: invert(1);
+}
 
 /* ── Input / Select ────────────────────────────────────────── */
 .nb-input {
