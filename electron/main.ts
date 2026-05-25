@@ -1,12 +1,14 @@
 import { app, BrowserWindow, ipcMain, session, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { join } from 'path';
-import { createTray, updateTrayState, updateTrayLanguage } from './tray';
+import { createTray, updateTrayState, updateTrayLanguage, setOnAsrProviderChange } from './tray';
 import { startHotkey, stopHotkey, setHotkeyCallback, setHotkeyReleaseCallback, setEscCallback, waitForHotkeyRelease } from './hotkey';
 import { injectText } from './text-inserter';
 import { ensureModel } from '../src/services/model-downloader';
 import { duckSystemAudio, unduckSystemAudio } from './audio-ducking';
 import { addRecordingStats, addHistoryEntry, loadStats, loadHistory, clearHistory, loadOverview } from './stats-history';
+import { SherpaASRProvider } from '../src/services/funasr-sherpa';
+import { getLLMProvider, getASRCloudProvider } from '../src/services/llm-providers';
 
 // Single instance lock — prevent double tray icon
 let gotTheLock = false;
@@ -60,6 +62,7 @@ let recordingStartedAt: number = 0;
 let translateMode: boolean = false;
 let translateModifierVK: number = 0xA1; // default: VK_RSHIFT
 let recordMode: 'toggle' | 'hold' = 'toggle';
+let muteOnRecord = true;
 
 function getDataPath(filename: string): string {
   return join(app.getPath('userData'), 'data', filename);
@@ -85,6 +88,10 @@ function writeJSON(filepath: string, data: unknown): void {
 function loadRecordMode(): 'toggle' | 'hold' {
   const settings = readJSON<any>(getDataPath('settings.json'), {});
   return settings.recordMode || 'toggle';
+}
+function loadMuteOnRecord(): boolean {
+  const settings = readJSON<any>(getDataPath('settings.json'), {});
+  return settings.muteOnRecord ?? true;
 }
 
 // Key name → VK code mapping for translate modifier
@@ -123,38 +130,62 @@ async function initRecognition(): Promise<void> {
     } catch { /* use default */ }
 
     if (provider === 'cloud') {
-      const { FunASRCloudProvider } = require('../src/services/funasr-cloud');
-
-      // Read API credentials for cloud ASR
-      let apiKey = '';
-      let baseUrl = 'https://api.openai.com/v1';
-      let model = 'whisper-1';
+      // Read ASR cloud provider preference
+      let asrCloudProviderKey = 'openai';
       try {
         const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
         if (fs.existsSync(settingsPath)) {
           const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-          model = settings.cloudAsrModel || 'whisper-1';
-          baseUrl = settings.llmBaseUrl || baseUrl;
+          asrCloudProviderKey = settings.asrCloudProvider || 'openai';
         }
-        const apiKeyPath = join(app.getPath('userData'), 'data', 'apikey.enc');
-        if (fs.existsSync(apiKeyPath)) {
-          try {
-            const encrypted = fs.readFileSync(apiKeyPath);
-            apiKey = require('electron').safeStorage.decryptString(encrypted);
-          } catch { /* key not decryptable */ }
-        }
-      } catch { /* use defaults */ }
+      } catch { /* use default */ }
 
-      recognitionProvider = new FunASRCloudProvider(apiKey, baseUrl, model);
-      recognitionReady = await recognitionProvider.initialize();
-      console.log('[Main] Recognition ready (cloud):', recognitionReady);
-    } else {
-      const { SherpaASRProvider } = require('../src/services/funasr-sherpa');
+      // Read ASR cloud API key (separate from LLM key)
+      let asrApiKey = '';
+      try {
+        const asrKeyPath = join(app.getPath('userData'), 'data', 'asr-apikey.enc');
+        if (fs.existsSync(asrKeyPath)) {
+          try {
+            const encrypted = fs.readFileSync(asrKeyPath);
+            asrApiKey = require('electron').safeStorage.decryptString(encrypted);
+          } catch { /* not decryptable */ }
+        }
+      } catch { /* ignore */ }
+
+      const preset = getASRCloudProvider(asrCloudProviderKey);
+      const asrEndpoint = preset?.endpoint || 'https://api.openai.com/v1';
+
+      if (!asrApiKey) {
+        console.log('[Main] Cloud ASR selected but no ASR API key configured');
+        recognitionReady = false;
+        sendToRenderer('voice:refine-failed', { error: 'Cloud ASR: please configure an API key for ASR in Settings → Model.' });
+      } else if (asrCloudProviderKey === 'openai') {
+        const { FunASRCloudProvider } = require('../src/services/funasr-cloud');
+        recognitionProvider = new FunASRCloudProvider(asrApiKey, asrEndpoint, 'whisper-1');
+        recognitionReady = await recognitionProvider.initialize();
+        console.log('[Main] Recognition ready (cloud:openai):', recognitionReady);
+      } else if (asrCloudProviderKey === 'volcano') {
+        const { VolcanoASRProvider } = require('../src/services/asr-volcano');
+        recognitionProvider = new VolcanoASRProvider(asrApiKey);
+        recognitionReady = await recognitionProvider.initialize();
+        console.log('[Main] Recognition ready (cloud:volcano):', recognitionReady);
+      } else if (asrCloudProviderKey === 'aliyun') {
+        const { AliyunASRProvider } = require('../src/services/asr-aliyun');
+        recognitionProvider = new AliyunASRProvider(asrApiKey);
+        recognitionReady = await recognitionProvider.initialize();
+        console.log('[Main] Recognition ready (cloud:aliyun):', recognitionReady);
+      }
+    }
+    if (provider === 'local') {
 
       const userModelDir = join(app.getPath('userData'), 'models', 'funasr');
       const userModel = join(userModelDir, 'model.int8.onnx');
+      const userTokens = join(userModelDir, 'tokens.txt');
 
       if (fs.existsSync(userModel)) {
+        if (!fs.existsSync(userTokens)) {
+          console.log('[Main] tokens.txt missing, will be re-downloaded');
+        }
         console.log('[Main] Loading SenseVoice model via sherpa-onnx from:', userModelDir);
         recognitionProvider = new SherpaASRProvider(userModelDir);
         recognitionReady = await recognitionProvider.initialize();
@@ -195,27 +226,39 @@ async function initRefinement(): Promise<void> {
     }
 
     const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
+    let llmProviderKey = 'openai';
     let model = 'gpt-4o-mini';
     let baseUrl = 'https://api.openai.com/v1';
     if (fs.existsSync(settingsPath)) {
       try {
         const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        llmProviderKey = settings.llmProvider || 'openai';
         model = settings.llmModel || model;
         baseUrl = settings.llmBaseUrl || baseUrl;
       } catch { /* ignore */ }
     }
 
-    // Provider is created whenever an API key exists — refineEnabled only
-    // controls whether auto-refinement runs; translation always uses this.
-    if (apiKey) {
-      const { OpenAIProvider } = require('../src/services/llm-openai');
-      refinementProvider = new OpenAIProvider({ apiKey, model, baseUrl });
-      refinementReady = true;
-      console.log('[Main] LLM ready:', model);
-    } else {
+    const preset = getLLMProvider(llmProviderKey);
+    if (preset && !model) model = preset.defaultModel;
+    if (preset && !baseUrl) baseUrl = preset.baseUrl;
+
+    const needsKey = !preset || preset.authType !== 'none';
+    if (needsKey && !apiKey) {
       refinementProvider = null;
       refinementReady = false;
+      return;
     }
+
+    if (llmProviderKey === 'gemini') {
+      const { GeminiProvider } = require('../src/services/llm-gemini');
+      refinementProvider = new GeminiProvider({ apiKey, model, baseUrl });
+    } else {
+      const { OpenAIProvider } = require('../src/services/llm-openai');
+      refinementProvider = new OpenAIProvider({ apiKey, model, baseUrl });
+    }
+
+    refinementReady = true;
+    console.log('[Main] LLM ready:', llmProviderKey, model);
   } catch (err: any) {
     console.error('[Main] Failed to init LLM:', err.message);
     refinementProvider = null;
@@ -410,9 +453,13 @@ function setVoiceState(state: VoiceState): void {
   // Track recording start time for stats
   if (state === 'recording' && currentState !== 'recording') {
     recordingStartedAt = Date.now();
-    duckSystemAudio().catch(e => console.error('[Main] duck error:', e));
+    if (muteOnRecord) {
+      duckSystemAudio().catch(e => console.error('[Main] duck error:', e));
+    }
   } else if (currentState === 'recording' && state !== 'recording') {
-    unduckSystemAudio().catch(e => console.error('[Main] unduck error:', e));
+    if (muteOnRecord) {
+      unduckSystemAudio().catch(e => console.error('[Main] unduck error:', e));
+    }
   }
 
   currentState = state;
@@ -442,6 +489,7 @@ function createSettingsWindow(showOnboarding = false): void {
     minWidth: 900,
     minHeight: 660,
     resizable: true,
+    frame: false,
     title: 'TINGMO · 设置',
     autoHideMenuBar: true,
     webPreferences: {
@@ -460,6 +508,12 @@ function createSettingsWindow(showOnboarding = false): void {
 
   settingsWindow.on('closed', () => {
     settingsWindow = null;
+  });
+  settingsWindow.on('maximize', () => {
+    settingsWindow?.webContents.send('window:maximize-change', true);
+  });
+  settingsWindow.on('unmaximize', () => {
+    settingsWindow?.webContents.send('window:maximize-change', false);
   });
 }
 
@@ -623,6 +677,7 @@ if (app) {
   });
 
   ipcMain.handle('settings:set-ui-language', (_event, lang: string) => {
+    currentLocale = lang;
     updateTrayLanguage(tray, lang, createSettingsWindow);
   });
 
@@ -653,7 +708,11 @@ if (app) {
     }
   });
 
-  ipcMain.handle('settings:save-llm-settings', (_event, settings: { refineEnabled?: boolean; llmModel?: string; llmBaseUrl?: string; asrProvider?: string }) => {
+  ipcMain.handle('settings:save-llm-settings', (_event, settings: {
+    refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
+    llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
+    asrCloudProvider?: string; asrCloudApiKey?: string;
+  }) => {
     try {
       const fs = require('fs');
       const dir = join(app.getPath('userData'), 'data');
@@ -677,6 +736,50 @@ if (app) {
 
   ipcMain.handle('settings:refinement-status', () => {
     return { ready: refinementReady, provider: refinementProvider?.name || null };
+  });
+
+  // ── Provider connection testing ─────────────────────────
+
+  ipcMain.handle('asr:test-connection', async (_event, provider: string, apiKey: string, endpoint: string) => {
+    const { testAsrConnection } = require('../src/services/connection-test');
+    return testAsrConnection(provider, apiKey, endpoint);
+  });
+
+  ipcMain.handle('llm:test-connection', async (_event, provider: string, apiKey: string, model: string, baseUrl: string) => {
+    const { testLlmConnection } = require('../src/services/connection-test');
+    return testLlmConnection(provider, apiKey, model, baseUrl);
+  });
+
+  // ── ASR cloud API key (separate from LLM key) ────────────
+
+  ipcMain.handle('settings:set-asr-cloud-api-key', async (_event, key: string) => {
+    try {
+      const fs = require('fs');
+      const { safeStorage } = require('electron');
+      const dir = join(app.getPath('userData'), 'data');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const encrypted = safeStorage.encryptString(key);
+      fs.writeFileSync(join(dir, 'asr-apikey.enc'), encrypted);
+      return true;
+    } catch (err: any) {
+      console.error('[Main] Failed to save ASR cloud API key:', err.message);
+      return false;
+    }
+  });
+
+  ipcMain.handle('settings:get-asr-cloud-api-key', async () => {
+    try {
+      const fs = require('fs');
+      const { safeStorage } = require('electron');
+      const keyPath = join(app.getPath('userData'), 'data', 'asr-apikey.enc');
+      if (fs.existsSync(keyPath)) {
+        const encrypted = fs.readFileSync(keyPath);
+        return safeStorage.decryptString(encrypted);
+      }
+      return '';
+    } catch {
+      return '';
+    }
   });
 
   // ── Model download ─────────────────────────────────────
@@ -751,7 +854,7 @@ if (app) {
       // Start key-release wait now — runs in parallel with ASR
       const releasePromise = waitForHotkeyRelease(150);
 
-      // Debug WAV save — non-blocking, off the critical path
+      // Debug WAV save — non-blocking
       setImmediate(() => {
         try {
           const fs = require('fs');
@@ -761,31 +864,52 @@ if (app) {
         } catch { /* ignore */ }
       });
 
-      if (recognitionReady && recognitionProvider) {
-        console.log('[Main] Running ASR...');
-        const result = await recognitionProvider.transcribe(buf, 16000, language);
-        text = result.text;
-        console.log('[Main] ASR result:', text);
-
-        // Filter silence hallucinations — SenseVoice outputs spurious words for near-silent input
-        const stripped = text.replace(/[，。？、！，,.\s　]/g, '').trim();
-        const HALLUCINATIONS = new Set([
-          'yeah', 'yeah.', 'yeah。', 'Yeah', 'Yeah.',
-          'um', 'Um', 'uh', 'Uh', 'hmm', 'Hmm',
-          '嗯', '嗯。', '啊', '啊。', '哦', '哦。',
-          '.', '。', '...', '……',
-        ]);
-        if (stripped.length < 2 || HALLUCINATIONS.has(text.trim())) {
-          console.log('[Main] Silence hallucination filtered:', text);
-          setVoiceState('idle');
-          hideFloatingWindow();
-          translateMode = false;
-          return;
+      // ── ASR Inference — always direct sherpa-onnx ─────────
+      {
+        const fs = require('fs');
+        const path = require('path');
+        const sherpa = require('sherpa-onnx');
+        const modelDir = join(app.getPath('userData'), 'models', 'funasr');
+        const modelPath = path.join(modelDir, 'model.int8.onnx');
+        const tokensPath = path.join(modelDir, 'tokens.txt');
+        if (!fs.existsSync(modelPath)) {
+          throw new Error('Model not found: ' + modelPath);
         }
-      } else {
-        throw new Error('ASR model not loaded. Please check model files or switch to cloud ASR.');
+        const rec = sherpa.createOfflineRecognizer({
+          modelConfig: {
+            senseVoice: { model: modelPath, language: '', useInverseTextNormalization: 1 },
+            tokens: tokensPath,
+          },
+        });
+        const numSamples = Math.floor((buf.length - 44) / 2);
+        const samples = new Float32Array(numSamples);
+        for (let i = 0; i < numSamples; i++) {
+          samples[i] = buf.readInt16LE(44 + i * 2) / 32768;
+        }
+        const stream = rec.createStream();
+        stream.acceptWaveform(16000, samples);
+        rec.decode(stream);
+        text = rec.getResult(stream).text || '';
+        stream.free();
+        rec.free();
+        console.log('[Main] ASR result:', text);
       }
 
+      // Filter silence hallucinations — SenseVoice outputs spurious words for near-silent input
+      const stripped = text.replace(/[，。？、！，,.\s　]/g, '').trim();
+      const HALLUCINATIONS = new Set([
+        'yeah', 'yeah.', 'yeah。', 'Yeah', 'Yeah.',
+        'um', 'Um', 'uh', 'Uh', 'hmm', 'Hmm',
+        '嗯', '嗯。', '啊', '啊。', '哦', '哦。',
+        '.', '。', '...', '……',
+      ]);
+      if (stripped.length < 2 || HALLUCINATIONS.has(text.trim())) {
+        console.log('[Main] Silence hallucination filtered:', text);
+        setVoiceState('idle');
+        hideFloatingWindow();
+        translateMode = false;
+        return;
+      }
       // Dictionary fuzzy correction — always runs, offline or online
       if (options?.dictionary && options.dictionary.length > 0 && text.length > 0) {
         text = applyDictionary(text, options.dictionary);
@@ -890,6 +1014,39 @@ if (app) {
     clipboard.writeText(text);
   });
 
+  // ── Window controls (frameless titlebar) ──────────────
+  ipcMain.on('window:minimize', () => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.minimize();
+    }
+  });
+  ipcMain.on('window:maximize', () => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      if (settingsWindow.isMaximized()) {
+        settingsWindow.unmaximize();
+      } else {
+        settingsWindow.maximize();
+      }
+    }
+  });
+  ipcMain.on('window:close', () => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.close();
+    }
+  });
+
+  // ── Settings sync from renderer ─────────────────────
+  let currentLocale = 'en';
+  ipcMain.handle('settings:set-mute-on-record', (_event, enabled: boolean) => {
+    muteOnRecord = enabled;
+    const filepath = getDataPath('settings.json');
+    const existing = readJSON<any>(filepath, {});
+    existing.muteOnRecord = enabled;
+    writeJSON(filepath, existing);
+    sendToRenderer('settings:changed', { muteOnRecord: enabled });
+    updateTrayLanguage(tray, currentLocale, createSettingsWindow);
+  });
+
   // ── Auto-update ─────────────────────────────────────
   if (!process.env.NODE_ENV || process.env.NODE_ENV !== 'development') {
     autoUpdater.logger = console;
@@ -959,23 +1116,30 @@ if (app) {
   // Init recognition in background
   initRecognition();
 
-  // Load record mode from persisted settings
+  // Load record mode and mute-on-record from persisted settings
   recordMode = loadRecordMode();
+  muteOnRecord = loadMuteOnRecord();
 
   const initLocale = app.getLocale()?.startsWith('zh') ? 'zh-CN' : 'en';
+  currentLocale = initLocale;
   tray = createTray(initLocale, createSettingsWindow, recordMode, (mode) => {
     recordMode = mode;
     const filepath = getDataPath('settings.json');
     const existing = readJSON<any>(filepath, {});
     existing.recordMode = mode;
     writeJSON(filepath, existing);
-  }, true, (enabled) => {
-    // Mute on record toggle — persist and notify renderer
+  }, muteOnRecord, (enabled) => {
+    muteOnRecord = enabled;
     const filepath = getDataPath('settings.json');
     const existing = readJSON<any>(filepath, {});
     existing.muteOnRecord = enabled;
     writeJSON(filepath, existing);
     sendToRenderer('settings:changed', { muteOnRecord: enabled });
+  });
+  setOnAsrProviderChange(async () => {
+    console.log('[Main] ASR provider changed, re-initializing...');
+    await initRecognition();
+    console.log('[Main] Re-init complete. recReady:', recognitionReady);
   });
   startHotkey();
 

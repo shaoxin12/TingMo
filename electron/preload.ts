@@ -72,8 +72,11 @@ const api = {
   // LLM / Refinement settings
   getApiKey: () => ipcRenderer.invoke('settings:get-api-key'),
   setApiKey: (key: string) => ipcRenderer.invoke('settings:set-api-key', key),
-  saveLlmSettings: (settings: { refineEnabled?: boolean; llmModel?: string; llmBaseUrl?: string; asrProvider?: string }) =>
-    ipcRenderer.invoke('settings:save-llm-settings', settings),
+  saveLlmSettings: (settings: {
+    refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
+    llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
+    asrCloudProvider?: string; asrCloudApiKey?: string;
+  }) => ipcRenderer.invoke('settings:save-llm-settings', settings),
   initRefinement: () => ipcRenderer.invoke('settings:init-refinement'),
   getRefinementStatus: () => ipcRenderer.invoke('settings:refinement-status'),
   getSystemLocale: () => ipcRenderer.invoke('settings:get-system-locale') as Promise<string>,
@@ -85,6 +88,7 @@ const api = {
   // App settings persistence
   loadAppSettings: () => ipcRenderer.invoke('settings:load-app-settings') as Promise<Record<string, unknown>>,
   saveAppSettings: (settings: Record<string, unknown>) => ipcRenderer.invoke('settings:save-app-settings', settings),
+  setMuteOnRecord: (enabled: boolean) => ipcRenderer.invoke('settings:set-mute-on-record', enabled),
   onSettingsChanged: (callback: (data: { muteOnRecord?: boolean; recordMode?: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('settings:changed', handler);
@@ -107,9 +111,29 @@ const api = {
     ipcRenderer.on('update:downloaded', handler);
     return () => ipcRenderer.removeListener('update:downloaded', handler);
   },
+  // Window controls (frameless titlebar)
+  minimizeWindow: () => ipcRenderer.send('window:minimize'),
+  maximizeWindow: () => ipcRenderer.send('window:maximize'),
+  closeWindow: () => ipcRenderer.send('window:close'),
+  onMaximizeChange: (callback: (maximized: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, maximized: boolean) => callback(maximized);
+    ipcRenderer.on('window:maximize-change', handler);
+    return () => ipcRenderer.removeListener('window:maximize-change', handler);
+  },
+
   checkForUpdates: () => ipcRenderer.invoke('update:check') as Promise<{ updateAvailable: boolean; version: string | null; error?: string }>,
   downloadUpdate: () => ipcRenderer.invoke('update:download') as Promise<{ success: boolean; error?: string }>,
   installUpdate: () => ipcRenderer.invoke('update:install'),
+
+  // Provider connection testing
+  testAsrConnection: (provider: string, apiKey: string, endpoint: string) =>
+    ipcRenderer.invoke('asr:test-connection', provider, apiKey, endpoint) as Promise<{ ok: boolean; error?: string }>,
+  testLlmConnection: (provider: string, apiKey: string, model: string, baseUrl: string) =>
+    ipcRenderer.invoke('llm:test-connection', provider, apiKey, model, baseUrl) as Promise<{ ok: boolean; error?: string }>,
+
+  // ASR cloud API key (separate from LLM)
+  setAsrCloudApiKey: (key: string) => ipcRenderer.invoke('settings:set-asr-cloud-api-key', key),
+  getAsrCloudApiKey: () => ipcRenderer.invoke('settings:get-asr-cloud-api-key') as Promise<string>,
 };
 
 contextBridge.exposeInMainWorld('tingmo', api);
