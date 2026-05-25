@@ -48,20 +48,17 @@ export async function testAsrConnection(
         headers: {
           'Content-Type': 'application/json',
           'X-Api-Key': apiKey,
-          'X-Api-Resource-Id': 'volc.seedasr.auc',
+          'X-Api-Resource-Id': 'volc.seedasr.sauc.duration',
           'X-Api-Request-Id': crypto.randomUUID(),
+          'X-Api-Sequence': '-1',
         },
-        body: JSON.stringify({
-          audio_format: 'wav',
-          audio_data: wav.toString('base64'),
-          model_name: 'bigmodel',
-          language: 'auto',
-        }),
+        body: JSON.stringify({ audio_format: 'wav' }),
         signal: ctrl.signal,
       });
       clearTimeout(timer);
       if (res.status === 401 || res.status === 403) return { ok: false, error: `密钥无效 (HTTP ${res.status})` };
-      return { ok: res.ok };
+      // Server returns 400 for empty audio — auth passed, key is valid
+      return { ok: res.status === 400 || res.ok };
     } catch (err: any) {
       if (err.name === 'AbortError') return { ok: false, error: '连接超时' };
       return { ok: false, error: err.message?.slice(0, 100) };
