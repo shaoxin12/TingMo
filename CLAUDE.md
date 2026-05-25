@@ -41,11 +41,13 @@ IDLE →(右Alt)→ RECORDING →(右Alt)→ RECOGNIZING →(refining)→ SUCCES
 1. 右 Alt → `SetWindowsHookExW` → Main 拦截 key-down（`consume: true`）+ 注入虚假 key-up（`keybd_event` 防卡键）→ 发 `voice:state-change` + `voice:translate-mode` → 浮窗显示
 2. 渲染进程 Web Audio API 采集 PCM（AGC 开启 + 0.8 平滑）→ 线性插值重采样到 16kHz → 编码 WAV → IPC `voice:transcribe`
 3. Main 进程：
+   - **直接 sherpa-onnx**（每次录音独立创建 recognizer，无状态缓存问题）
    - sherpa-onnx 加载 SenseVoiceSmall ONNX → 带标点文字（内置 ITN，语言自动检测）
    - **幻听过滤**（白名单：单字/短词幻觉）
    - **词典模糊纠错**（Levenshtein 编辑距离，短词容错 ≤1，长词 ≤2）
    - **LLM 润色**（`refineEnabled` 开启时）→ 5 种模式 + 自定义 Prompt
    - **LLM 翻译**（右 Shift 触发时）→ 复用润色的 LLM Provider（同一 API Key/Model/Endpoint）
+   - **录音时静音**（`IAudioEndpointVolume::SetMute` + `Guid.Empty`，无 OSD 弹窗）
 4. `SendInput + KEYEVENTF_UNICODE` 逐字符 Unicode 注入
 5. 统计/历史持久化到 `userData/data/`
 6. 渲染进程 800ms 后自动播放 dismiss 动画，回到 IDLE
@@ -65,7 +67,7 @@ electron/
 ├── text-inserter.ts     # SendInput Unicode 逐字符注入 (koffi)
 ├── tray.ts              # 系统托盘（状态叠加色点、NB 风格菜单）
 ├── tray-i18n.ts         # 托盘菜单翻译 (5 语言)
-├── audio-ducking.ts     # 录音时静音系统音频 (PowerShell COM)
+├── audio-ducking.ts     # 录音时静音（IAudioEndpointVolume COM，内联 PowerShell，Guid.Empty 无 OSD）
 ├── stats-history.ts     # 统计/历史/每日统计持久化 (JSON)
 └── logger.ts            # 文件日志（未启用，直接 console）
 
@@ -96,14 +98,32 @@ src/
 │   ├── funasr-cloud.ts        # FunASRCloudProvider — OpenAI Whisper API 云端 ASR
 │   ├── llm-refine.ts          # IRefinementProvider 接口 + 5 种润色模式/1 种翻译 System Prompt
 │   ├── llm-openai.ts          # OpenAIProvider — OpenAI 兼容 chat/completions API（润色和翻译共用）
-│   └── model-downloader.ts    # 首次启动下载 SenseVoiceSmall 模型 (GitHub Releases)
+│   └── model-downloader.ts    # 多源镜像下载 SenseVoiceSmall 模型 (hf-mirror→HF→GitHub, Range 续传)
 ├── store/settings.ts      # Zustand store (精简后字段 + 持久化/水合)
 └── styles/global.css      # 全局样式 (胶囊/波形条/NB设置/历史/词典/开关/输入框/柱状图)
 ```
 
 ## 设置窗口
 
-NB 风格：纯白底 `#FFF`、黑边框、橙色 `#FF5A1F` 点缀。左侧 175px 导航栏（4 个按钮，激活黑底白字）。右侧卡片式内容区。
+**Frameless 无系统标题栏**（`frame: false`），自定义 NB 风格标题栏。
+
+### 标题栏
+
+38px 白色标题栏，左侧 `img.nb-titlebar-logo`（18×18）+ "TingMo" 品牌名，右侧三颗窗口控制按钮。标题栏整体 `-webkit-app-region: drag` 可拖拽，按钮区域 `no-drag`。
+
+- 最小化/最大化/关闭 IPC：`window:minimize` / `window:maximize` / `window:close`
+- 最大化状态通过 `window:maximize-change` 事件通知渲染进程切换图标
+- 关闭按钮 hover 红色 `#ff5555`
+
+### 侧边栏
+
+NB 卡片风格：`border: 3px solid #000` + `box-shadow: 4px 4px 0 #000`，`margin: 12px`。导航按钮扁平圆角，激活态浅灰底 `#f5f5f5` + 左侧橙色竖线 `border-left: 3px solid #FF5A1F`。底部版本号 `V0.3.0`。
+
+### 滚动条
+
+5px 宽 `#ddd` 圆角滑块，透明轨道。
+
+### 标签页
 
 | 标签 | 内容 |
 |------|------|
@@ -118,14 +138,13 @@ NB 风格：纯白底 `#FFF`、黑边框、橙色 `#FF5A1F` 点缀。左侧 175p
 
 ### UI 样式要点
 
-- `.nb-tag.accent` 橙色铭牌：12px 字体，padding 4×12
-- `.nb-dot` 侧边栏橙色方块：14×14px，品牌区居中
-- `.nb-nav-item` 侧边栏按钮：13px 字体
-- 柱状图统一 `#FF5A1F` 橙色 + 2px `#000` 黑色描边 + `box-sizing: border-box`
+- `.nb-titlebar` 标题栏：38px，`justify-content: space-between`
+- `.nb-titlebar-brand` 品牌区：logo 18×18 + 14px/700 字体
+- `.nb-win-btn` 窗口按钮：36×36px，左侧 2px 黑线分隔
+- `.nb-sidebar` 侧边栏卡片：3px 黑边框 + `4px 4px 0` 阴影
+- `.nb-nav-item` 导航按钮：无阴影，激活态左橙色竖线
 - `.nb-section:first-child` margin-top: 12px；其余 24px
 - `.nb-main` 内容区 padding-top: 0
-- `.home-dur-unit` 时长单位：0.65em / opacity 0.7（今日数字 28px 时约 18px）
-- `.home-today-number` `text-align: center`
 
 ### 设置持久化
 
@@ -199,10 +218,30 @@ NB 风格：纯白底 `#FFF`、黑边框、橙色 `#FF5A1F` 点缀。左侧 175p
 | `checkForUpdates()` / `downloadUpdate()` / `installUpdate()` | Renderer→Main | 自动更新 |
 | `onUpdateAvailable/Progress/Downloaded` | Main→Renderer | 更新事件 |
 | `debugSaveWav(buf, name)` | Renderer→Main | 调试录音保存 |
+| `minimizeWindow()` | Renderer→Main | 最小化设置窗口 |
+| `maximizeWindow()` | Renderer→Main | 最大化/还原设置窗口 |
+| `closeWindow()` | Renderer→Main | 关闭设置窗口 |
+| `onMaximizeChange(cb)` | Main→Renderer | 最大化状态变化通知 |
+| `setMuteOnRecord(enabled)` | Renderer→Main | 设置录音静音开关 |
+| `setRecordingHotkey(key)` | Renderer→Main | 更新录音快捷键 |
+| `setTranslateModifier(key)` | Renderer→Main | 更新翻译修饰键 |
 
 ## 翻译目标语言
 
 `en` / `zh` / `ja` / `ko` / `fr` / `de` / `es`（TranslateLang 类型）
+
+## 模型下载
+
+`src/services/model-downloader.ts` — 多源镜像 + HTTP Range 断点续传 + 速度日志。
+
+下载源顺序：
+1. **hf-mirror.com**（国内最快，直下单文件无需解压）
+2. **huggingface.co**（官方源）
+3. **GitHub Releases**（原始源，tar.bz2 需解压）
+
+HuggingFace 源（1、2）直接下载 `model.int8.onnx` + `tokens.txt`，无需 `tar` 解压。GitHub 源保持 tar.bz2 下载+解压方式。
+
+`ensureModel()` 返回 Promise，进度通过 `DownloadProgress` 回调上报。下载失败自动切换下一源。下载速度每 2 秒打印到控制台。
 
 ## 模型文件
 
@@ -212,6 +251,24 @@ NB 风格：纯白底 `#FFF`、黑边框、橙色 `#FF5A1F` 点缀。左侧 175p
 |------|------|------|
 | `model.int8.onnx` | 229MB | SenseVoiceSmall INT8 |
 | `tokens.txt` | 309KB | 词表 (25055 tokens) |
+
+模型就绪检查只需 `model.int8.onnx` 存在即可。`tokens.txt` 缺失只打 warning，`SherpaASRProvider.initialize()` 会递归搜索子目录找 tokens。缺文件触发后台补下。
+
+## ASR Provider 动态切换
+
+- 托盘菜单右键 → Voice Mode → 本地/云端，切换后**立即生效、无需重启**
+- `tray.ts` 导出 `setOnAsrProviderChange(cb)`，main.ts 注册回调 → 触发 `initRecognition()` 重新加载
+- 设置窗口 ASR 切换通过 `saveLlmSettings` IPC 持久化，需重启生效（TODO: 应统一触发 re-init）
+- **云 ASR 无 API Key 时**：不静默回退到本地，而是 `sendToRenderer('voice:refine-failed', ...)` 通知用户
+- SherpaASRProvider 改为**静态 import**（`import { SherpaASRProvider } from '../src/services/funasr-sherpa'`），不再用动态 require
+
+## 录音时静音
+
+- **实现**：`IAudioEndpointVolume` COM 接口，通过常驻 PowerShell 进程控制
+- **无 OSD 弹窗**：`SetMute(value, Guid.Empty)` — 空 GUID 告诉 Windows 这是程序操作而非物理按键
+- **状态感知**：录音前记录 `wasMutedBefore`，停止后仅恢复未被用户手动静音的情况
+- **开关位置**：设置窗口（音频 → 录音时静音）+ 托盘右键菜单（勾选项），通过 IPC `settings:set-mute-on-record` 双向同步
+- 默认开启（`muteOnRecord: true`），通过 `loadMuteOnRecord()` 从 settings.json 读取
 
 ## 已知限制 / 重要教训
 
@@ -224,3 +281,11 @@ NB 风格：纯白底 `#FFF`、黑边框、橙色 `#FF5A1F` 点缀。左侧 175p
 - **位置漂移**：禁止恢复 `win.on('moved')` 和 `floatingPosition` 缓存，详见"位置漂移修复"章节
 - **键盘卡键**：右 Alt key-up 不可放行，必须用虚假 key-up 注入机制，详见"键盘钩子防卡键"章节
 - **设置文件双重存储**：`settings.json`（App 设置）+ `llm-settings.json`（LLM/ASR 设置），两者独立但 asrProvider 在两个文件中都存在
+- **hotkey.ts `currentVk` 必须声明**：`let currentVk: number = VK_RMENU`，否则按键钩子每个事件都抛 `ReferenceError`
+- **禁止模块顶层导入 Node built-in（如 `import fs from 'fs'`）**：sherpa-onnx worker 会加载主进程打包文件，模块顶层 `require("fs")` 在 worker 上下文中可能出问题。所有函数内部用 `const fs = require('fs')`
+- **SherpaASRProvider 用静态 import 而非动态 require**：`import { SherpaASRProvider } from '../src/services/funasr-sherpa'` 放在 main.ts 顶部。动态 require 经 esbuild 打包后可能模块初始化顺序不对
+- **ASR 模型检查只要求 model.int8.onnx**：tokens.txt 缺了只打 warning（funasr-sherpa.ts 会递归搜索子目录）。不要因为 tokens 缺失阻止本地 ASR 加载
+- **COM 接口 vtable 偏移要精确**：`IAudioEndpointVolume` 有 14 个方法在 SetMute 前面（3 IUnknown + 11 音频方法），多一个 void 占位就会对不上。用 `Marshal.ThrowExceptionForHR` 检查 HRESULT，出问题直接报错而不是静默失败
+- **`GetDefaultAudioEndpoint(0, 1, ...)`**：dataFlow=0 (eRender)，role=1 (eMultimedia)，不是 eConsole
+- **`Activate(ref iid, 23, 0, ...)`**：CLSCTX_ALL=23，activationParams 是 int 不是 IntPtr
+- **静音无 OSD**：`SetMute(value, Guid.Empty)` — 空 GUID 抑制 Windows 音量 OSD 弹窗。不要用 keybd_event 或 SendInput 模拟按键，会触发系统提示

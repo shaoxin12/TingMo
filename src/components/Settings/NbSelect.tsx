@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 
 interface Props {
   value: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; icon?: React.ReactNode }[];
   onChange: (value: string) => void;
 }
 
@@ -10,6 +10,7 @@ export const NbSelect: React.FC<Props> = ({ value, options, onChange }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const label = options.find((o) => o.value === value)?.label ?? value;
+  const selectedIcon = options.find((o) => o.value === value)?.icon;
 
   useEffect(() => {
     if (!open) return;
@@ -29,7 +30,10 @@ export const NbSelect: React.FC<Props> = ({ value, options, onChange }) => {
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
       >
-        <span>{label}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {selectedIcon}
+            <span>{label}</span>
+          </span>
         <span className="nb-select-arrow" />
       </button>
       {open && (
@@ -41,6 +45,7 @@ export const NbSelect: React.FC<Props> = ({ value, options, onChange }) => {
               onClick={() => { onChange(o.value); setOpen(false); }}
             >
               {o.label}
+                {o.icon && <span style={{ marginLeft: 6 }}>{o.icon}</span>}
             </button>
           ))}
         </div>

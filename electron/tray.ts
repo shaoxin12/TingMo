@@ -8,6 +8,10 @@ type Locale = string;
 let asrProvider: 'local' | 'cloud' = 'local';
 let onAsrProviderChange: (() => void) | null = null;
 
+export function setOnAsrProviderChange(cb: () => void): void {
+  onAsrProviderChange = cb;
+}
+
 function loadAsrProvider(): 'local' | 'cloud' {
   try {
     const p = join(app.getPath('userData'), 'data', 'llm-settings.json');

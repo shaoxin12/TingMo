@@ -67,7 +67,7 @@ export const UpdatePanel: React.FC = () => {
     <div>
       <div className="nb-row">
         <span className="nb-label">{t('update.currentVersion')}</span>
-        <span className="nb-value" style={{ fontSize: 12, fontFamily: 'monospace' }}>v0.2.0</span>
+        <span className="nb-value" style={{ fontSize: 12, fontFamily: 'monospace' }}>V0.3.0</span>
       </div>
       {statusMsg && (
         <>

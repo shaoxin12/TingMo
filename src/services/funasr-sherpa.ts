@@ -1,5 +1,20 @@
 import type { IRecognitionProvider, RecognitionResult } from './speech-recognition';
 
+function findFile(fs: any, path: any, dir: string, filename: string): string | null {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const result = findFile(fs, path, path.join(dir, entry.name), filename);
+        if (result) return result;
+      } else if (entry.name === filename) {
+        return path.join(dir, entry.name);
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 export class SherpaASRProvider implements IRecognitionProvider {
   readonly name = 'SenseVoiceSmall';
   readonly type = 'local' as const;
@@ -18,12 +33,22 @@ export class SherpaASRProvider implements IRecognitionProvider {
       this.sherpa = require('sherpa-onnx');
 
       const modelPath = path.join(this.modelDir, 'model.int8.onnx');
-      const tokensPath = path.join(this.modelDir, 'tokens.txt');
+      let tokensPath = path.join(this.modelDir, 'tokens.txt');
 
-      if (!fs.existsSync(modelPath) || !fs.existsSync(tokensPath)) {
-        console.log('[SherpaASR] Model files not found');
+      if (!fs.existsSync(modelPath)) {
+        console.log('[SherpaASR] model.int8.onnx not found at', modelPath);
         this.isReady = false;
         return false;
+      }
+
+      // tokens.txt might be in a subdirectory from old tar.bz2 extraction
+      if (!fs.existsSync(tokensPath)) {
+        console.log('[SherpaASR] tokens.txt not at top level, searching subdirectories...');
+        const found = findFile(fs, path, this.modelDir, 'tokens.txt');
+        if (found) {
+          tokensPath = found;
+          console.log('[SherpaASR] Found tokens.txt at', found);
+        }
       }
 
       const config = {

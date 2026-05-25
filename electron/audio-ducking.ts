@@ -1,150 +1,104 @@
 import { spawn, ChildProcess } from 'child_process';
 
-// ── PowerShell COM backend ─────────────────────────────────────
-// Long-running PowerShell process that compiles a C# wrapper for
-// IAudioEndpointVolume once, then responds to stdin commands.
-// No OSD popup, no system-wide registry changes.
-
+// ── Inline PowerShell COM backend (IAudioEndpointVolume, no OSD) ──
 const PS_SCRIPT = `
-Add-Type -TypeDefinition @"
+Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
-
-[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-class MMDeviceEnumerator { }
-
-[ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IMMDeviceEnumerator {
-  void _0(); void _1(); void _2(); void _3();
-  int GetDefaultAudioEndpoint(int dataFlow, int role, out IntPtr endpoint);
-}
-
-[ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IMMDevice {
-  void _0(); void _1(); void _2();
-  int Activate(ref Guid iid, int clsCtx, IntPtr p, out IntPtr iface);
-}
-
-[ComImport, Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IAudioEndpointVolume {
-  void _r(); void _u(); void _g();
-  void _0(); void _1(); void _2(); void _3(); void _4();
-  void _5(); void _6(); void _7(); void _8(); void _9();
-  void _a(); void _b();
-  int SetMute(bool mute, IntPtr ctx);
-  int GetMute(out bool mute);
+    int f(); int g(); int h(); int i();
+    int SetMasterVolumeLevelScalar(float level, Guid ctx);
+    int j();
+    int GetMasterVolumeLevelScalar(out float level);
+    int k(); int l(); int m(); int n();
+    int SetMute([MarshalAs(UnmanagedType.Bool)] bool mute, Guid ctx);
+    int GetMute(out bool mute);
 }
-
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice {
+    int Activate(ref Guid iid, int clsCtx, int activationParams, out IAudioEndpointVolume epv);
+}
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator {
+    int f();
+    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint);
+}
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+class MMDeviceEnumeratorComObject { }
 public static class Audio {
-  static IAudioEndpointVolume vol;
-  static void Init() {
-    if (vol != null) return;
-    var enu = (IMMDeviceEnumerator)new MMDeviceEnumerator();
-    IntPtr dp; enu.GetDefaultAudioEndpoint(0, 0, out dp);
-    var dev = (IMMDevice)Marshal.GetTypedObjectForIUnknown(dp, typeof(IMMDevice));
-    Guid iid = typeof(IAudioEndpointVolume).GUID;
-    IntPtr vp; dev.Activate(ref iid, 7, IntPtr.Zero, out vp);
-    vol = (IAudioEndpointVolume)Marshal.GetTypedObjectForIUnknown(vp, typeof(IAudioEndpointVolume));
-  }
-  public static void Mute()   { Init(); vol.SetMute(true, IntPtr.Zero); }
-  public static void Unmute() { Init(); vol.SetMute(false, IntPtr.Zero); }
-  public static bool IsMuted(){ Init(); bool m; vol.GetMute(out m); return m; }
-}
-"@
-[Console]::WriteLine("READY")
-while ($true) {
-  $cmd = [Console]::In.ReadLine()
-  if ($cmd -eq $null) { break }
-  try {
-    if ($cmd -eq "mute") {
-      [Audio]::Mute()
-      [Console]::WriteLine("OK")
-    } elseif ($cmd -eq "unmute") {
-      [Audio]::Unmute()
-      [Console]::WriteLine("OK")
-    } elseif ($cmd -eq "state") {
-      if ([Audio]::IsMuted()) {
-        [Console]::WriteLine("1")
-      } else {
-        [Console]::WriteLine("0")
-      }
-    } else {
-      [Console]::WriteLine("ERR:unknown")
+    static IAudioEndpointVolume Vol() {
+        var enumerator = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
+        IMMDevice dev = null;
+        Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(0, 1, out dev));
+        IAudioEndpointVolume epv = null;
+        var iid = typeof(IAudioEndpointVolume).GUID;
+        Marshal.ThrowExceptionForHR(dev.Activate(ref iid, 23, 0, out epv));
+        return epv;
     }
-  } catch {
-    [Console]::WriteLine("ERR:" + $_.Exception.Message)
-  }
+    public static bool Mute {
+        get { bool m; Marshal.ThrowExceptionForHR(Vol().GetMute(out m)); return m; }
+        set { Marshal.ThrowExceptionForHR(Vol().SetMute(value, Guid.Empty)); }
+    }
+}
+'@
+Write-Host "READY"
+while ($true) {
+    $cmd = [Console]::In.ReadLine()
+    if ($cmd -eq $null) { break }
+    try {
+        if ($cmd -eq "mute") { [Audio]::Mute = $true; Write-Host "OK" }
+        elseif ($cmd -eq "unmute") { [Audio]::Mute = $false; Write-Host "OK" }
+        elseif ($cmd -eq "state") { if ([Audio]::Mute) { Write-Host "1" } else { Write-Host "0" } }
+        else { Write-Host "ERR:unknown" }
+    } catch { Write-Host ("ERR:" + $_.Exception.Message) }
 }
 `;
 
+// ── Persistent PowerShell process ──────────────────────────────
 let psProc: ChildProcess | null = null;
 let ready = false;
 let pendingResolve: ((v: string) => void) | null = null;
-let warmPromise: Promise<void> | null = null;
 
-function ensurePS(): Promise<void> {
-  if (ready) return Promise.resolve();
-  if (warmPromise) return warmPromise;
+function getPS(): Promise<void> {
+  if (ready && psProc && !psProc.killed) return Promise.resolve();
 
-  warmPromise = new Promise<void>((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
+    if (psProc) { try { psProc.kill(); } catch { /* ignore */ } }
+
     psProc = spawn('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', PS_SCRIPT,
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-Command', PS_SCRIPT,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
 
-    // Accumulate line output
     let lineBuf = '';
     psProc.stdout!.on('data', (data: Buffer) => {
       lineBuf += data.toString();
       const lines = lineBuf.split('\n');
       lineBuf = lines.pop() || '';
-
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
-
-        if (!ready && trimmed === 'READY') {
-          ready = true;
-          resolve();
-          continue;
-        }
-
-        if (pendingResolve) {
-          const cb = pendingResolve;
-          pendingResolve = null;
-          cb(trimmed);
-        }
+        if (!ready && trimmed === 'READY') { ready = true; resolve(); continue; }
+        if (pendingResolve) { const cb = pendingResolve; pendingResolve = null; cb(trimmed); }
       }
     });
 
     psProc.stderr!.on('data', (d: Buffer) => {
-      console.error('[AudioDucking PS]', d.toString().trim());
+      console.error('[AudioDucking]', d.toString().trim());
     });
 
-    psProc.on('exit', (code: number | null) => {
-      console.log('[AudioDucking] PS exited:', code);
-      psProc = null;
-      ready = false;
-      warmPromise = null;
-      if (pendingResolve) {
-        pendingResolve('ERR:ps exited');
-        pendingResolve = null;
-      }
+    psProc.on('exit', () => {
+      psProc = null; ready = false;
+      if (pendingResolve) { pendingResolve('ERR:ps exited'); pendingResolve = null; }
     });
 
-    // Timeout
-    setTimeout(() => {
-      if (!ready) {
-        reject(new Error('PS warm-up timeout'));
-        warmPromise = null;
-      }
-    }, 8000);
+    setTimeout(() => { if (!ready) reject(new Error('Audio PS timeout')); }, 8000);
   });
-
-  return warmPromise;
 }
 
 function sendCmd(cmd: string): Promise<string> {
-  return ensurePS().then(() => new Promise<string>((resolve) => {
+  return getPS().then(() => new Promise<string>((resolve) => {
     pendingResolve = resolve;
     psProc!.stdin!.write(cmd + '\n');
   }));
@@ -158,20 +112,14 @@ let wasMutedBefore: boolean | null = null;
 export async function duckSystemAudio(): Promise<void> {
   if (ducking) return;
   ducking = true;
-
   const state = await sendCmd('state');
   wasMutedBefore = state === '1';
-  if (!wasMutedBefore) {
-    await sendCmd('mute');
-  }
+  if (!wasMutedBefore) await sendCmd('mute');
 }
 
 export async function unduckSystemAudio(): Promise<void> {
   if (!ducking) return;
   ducking = false;
-
-  if (!wasMutedBefore) {
-    await sendCmd('unmute');
-  }
+  if (!wasMutedBefore) await sendCmd('unmute');
   wasMutedBefore = null;
 }

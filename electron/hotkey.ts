@@ -67,6 +67,8 @@ export function setHotkeyReleaseCallback(cb: () => void): void {
   releaseCallback = cb;
 }
 
+let currentVk: number = VK_RMENU;
+
 export function setEscCallback(cb: () => void): void {
   escCallback = cb;
 }

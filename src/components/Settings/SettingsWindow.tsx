@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSettingsStore, TranslateLang, UILanguage } from '../../store/settings';
 import { useI18n } from '../../i18n/context';
+import { LLM_PROVIDERS, ASR_CLOUD_PROVIDERS, getLLMModels } from '../../services/llm-providers';
 import { HotkeyRecorder } from './HotkeyRecorder';
 import { NbSelect } from './NbSelect';
 import { HomePanel } from './HomePanel';
@@ -34,12 +35,6 @@ const LANG_OPTIONS: { value: UILanguage; label: string }[] = [
   { value: 'ko',    label: '한국어' },
 ];
 
-const LLM_MODELS = ['gpt-4o-mini', 'gpt-4.1-nano', 'claude-haiku-4-5', 'deepseek-chat', 'qwen-turbo'];
-const LLM_LABELS: Record<string, string> = {
-  'gpt-4o-mini': 'GPT-4o-mini', 'gpt-4.1-nano': 'GPT-4.1 Nano', 'claude-haiku-4-5': 'Claude Haiku 4.5',
-  'deepseek-chat': 'DeepSeek Chat', 'qwen-turbo': '通义千问 Turbo',
-};
-
 export const SettingsWindow: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const { t } = useI18n();
@@ -51,23 +46,63 @@ export const SettingsWindow: React.FC = () => {
     muteOnRecord, setMuteOnRecord,
     useDictionary, setUseDictionary,
     refineEnabled, setRefineEnabled,
+    llmProvider, setLlmProvider,
     llmApiKey, setLlmApiKey,
     llmModel, setLlmModel,
     llmBaseUrl, setLlmBaseUrl,
+    asrCloudProvider, setAsrCloudProvider,
+    asrCloudApiKey, setAsrCloudApiKey,
     selectedMicDeviceId, setSelectedMicDeviceId,
-    // translation reuses LLM config — just pick target language
     translateTarget, setTranslateTarget,
     uiLanguage, setUiLanguage,
   } = useSettingsStore();
+
+  // ── Test button states ─────────────────────────────────
+  const [asrTesting, setAsrTesting] = useState(false);
+  const [asrTestResult, setAsrTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const [asrTestError, setAsrTestError] = useState('');
+  const [llmTesting, setLlmTesting] = useState(false);
+  const [llmTestResult, setLlmTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const [llmTestError, setLlmTestError] = useState('');
+
+  // ── Test handlers ─────────────────────────────────────
+  const handleTestAsr = useCallback(async () => {
+    setAsrTesting(true);
+    setAsrTestResult('idle');
+    setAsrTestError('');
+    await window.tingmo?.setAsrCloudApiKey(asrCloudApiKey);
+    const preset = ASR_CLOUD_PROVIDERS.find((p) => p.key === asrCloudProvider);
+    const result = await window.tingmo?.testAsrConnection(asrCloudProvider, asrCloudApiKey, preset?.endpoint || '');
+    setAsrTesting(false);
+    if (result?.ok) { setAsrTestResult('ok'); }
+    else { setAsrTestResult('fail'); setAsrTestError(result?.error || t('test.failed')); }
+  }, [asrCloudProvider, asrCloudApiKey, t]);
+
+  const handleTestLlm = useCallback(async () => {
+    setLlmTesting(true);
+    setLlmTestResult('idle');
+    setLlmTestError('');
+    await window.tingmo?.setApiKey(llmApiKey);
+    const result = await window.tingmo?.testLlmConnection(llmProvider, llmApiKey, llmModel, llmBaseUrl);
+    setLlmTesting(false);
+    if (result?.ok) { setLlmTestResult('ok'); }
+    else { setLlmTestResult('fail'); setLlmTestError(result?.error || t('test.failed')); }
+  }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
   useEffect(() => {
     window.tingmo?.setApiKey(llmApiKey);
   }, [llmApiKey]);
 
   useEffect(() => {
-    window.tingmo?.saveLlmSettings({ refineEnabled, llmModel, llmBaseUrl, asrProvider });
+    window.tingmo?.setAsrCloudApiKey(asrCloudApiKey);
+  }, [asrCloudApiKey]);
+
+  useEffect(() => {
+    window.tingmo?.saveLlmSettings({
+      refineEnabled, llmProvider, llmModel, llmBaseUrl, asrProvider, asrCloudProvider,
+    });
     window.tingmo?.initRefinement();
-  }, [refineEnabled, llmModel, llmBaseUrl, asrProvider]);
+  }, [refineEnabled, llmProvider, llmModel, llmBaseUrl, asrProvider, asrCloudProvider]);
 
   useEffect(() => {
     window.tingmo?.setUiLanguage(uiLanguage);
@@ -83,6 +118,18 @@ export const SettingsWindow: React.FC = () => {
     });
   }, [setMuteOnRecord]);
 
+  // Maximize state for window control button
+  const [isMaximized, setIsMaximized] = useState(false);
+  useEffect(() => {
+    return window.tingmo?.onMaximizeChange?.((maximized: boolean) => {
+      setIsMaximized(maximized);
+    });
+  }, []);
+
+  const minimizeWindow = () => window.tingmo?.minimizeWindow();
+  const toggleMaximize = () => window.tingmo?.maximizeWindow();
+  const closeWindow = () => window.tingmo?.closeWindow();
+
   const navItems: { key: Tab; label: string }[] = [
     { key: 'home',       label: t('nav.home') },
     { key: 'dictionary', label: t('nav.dictionary') },
@@ -91,11 +138,32 @@ export const SettingsWindow: React.FC = () => {
   ];
 
   return (
-    <div className="nb-shell">
-      <nav className="nb-sidebar">
-        <div className="nb-sidebar-top">
-          <div className="nb-sidebar-brand"><span className="nb-dot" /><span>{t('brand.name')}</span></div>
-          <div className="nb-sidebar-nav">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fff' }}>
+      <div className="nb-titlebar">
+        <div className="nb-titlebar-brand">
+          <img className="nb-titlebar-logo" src="./icon.png" alt="" />
+          <span>TingMo</span>
+        </div>
+        <div className="nb-titlebar-controls">
+          <button className="nb-win-btn" onClick={minimizeWindow}>
+            <svg viewBox="0 0 16 16"><rect x="3" y="12" width="10" height="1.5" fill="currentColor" /></svg>
+          </button>
+          <button className="nb-win-btn" onClick={toggleMaximize}>
+            {isMaximized ? (
+              <svg viewBox="0 0 16 16"><rect x="3" y="5" width="7" height="7" rx="0.5" fill="none" stroke="currentColor" strokeWidth="1.5" /><rect x="6" y="3" width="7" height="7" rx="0.5" fill="#fff" stroke="currentColor" strokeWidth="1.5" /></svg>
+            ) : (
+              <svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="0.5" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
+            )}
+          </button>
+          <button className="nb-win-btn nb-win-close" onClick={closeWindow}>
+            <svg viewBox="0 0 16 16"><line x1="4" y1="4" x2="12" y2="12" stroke="currentColor" strokeWidth="1.5" /><line x1="12" y1="4" x2="4" y2="12" stroke="currentColor" strokeWidth="1.5" /></svg>
+          </button>
+        </div>
+      </div>
+      <div className="nb-shell" style={{ height: 'calc(100vh - 36px)' }}>
+        <nav className="nb-sidebar">
+          <div className="nb-sidebar-top">
+            <div className="nb-sidebar-nav">
             {navItems.map((item) => (
               <button key={item.key} className={`nb-nav-item ${activeTab === item.key ? 'active' : ''}`} onClick={() => setActiveTab(item.key)}>
                 <span>{item.label}</span>
@@ -103,7 +171,7 @@ export const SettingsWindow: React.FC = () => {
             ))}
           </div>
         </div>
-        <div className="nb-sidebar-bottom"><div className="nb-sidebar-ver">v0.3.0</div></div>
+        <div className="nb-sidebar-bottom"><div className="nb-sidebar-ver">V0.3.0</div></div>
       </nav>
 
       <main className="nb-main">
@@ -127,9 +195,37 @@ export const SettingsWindow: React.FC = () => {
                   <>
                     <div className="nb-hr" />
                     <div className="nb-row">
-                      <span className="nb-label">{t('settings.apiKey')}</span>
-                      <input className="nb-input" type="password" value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)} placeholder="sk-..." />
+                      <span className="nb-label">{t('provider.asrService')}</span>
+                      <NbSelect
+                        value={asrCloudProvider}
+                        options={ASR_CLOUD_PROVIDERS.map((p) => ({
+                          value: p.key, label: p.name,
+                          icon: <span className="nb-provider-icon" style={{ background: p.color }}>{p.initial}</span>,
+                        }))}
+                        onChange={(v) => { setAsrCloudProvider(v); setAsrTestResult('idle'); }}
+                      />
                     </div>
+                    <div className="nb-hr" />
+                    <div className="nb-row">
+                      <span className="nb-label">{t('model.asrCloudApiKey')}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                        <input className="nb-input" type="password" value={asrCloudApiKey}
+                          onChange={(e) => { setAsrCloudApiKey(e.target.value); setAsrTestResult('idle'); }}
+                          placeholder={t('model.asrCloudApiKeyPlaceholder')} style={{ flex: 1 }} />
+                        <button
+                          className={`nb-btn nb-btn-test ${asrTesting ? 'nb-btn-test-loading' : ''} ${asrTestResult === 'ok' ? 'nb-btn-test-ok' : ''} ${asrTestResult === 'fail' ? 'nb-btn-test-fail' : ''}`}
+                          onClick={handleTestAsr} disabled={asrTesting || !asrCloudApiKey}
+                        >
+                          {asrTesting ? t('test.testing') : asrTestResult === 'ok' ? '✓' : asrTestResult === 'fail' ? '✗' : t('test.button')}
+                        </button>
+                      </div>
+                    </div>
+                    {asrTestResult === 'fail' && (
+                      <>
+                        <div className="nb-hr" />
+                        <div className="nb-row"><span className="nb-label" /><span className="nb-value" style={{ color: '#e00', fontSize: 12 }}>{asrTestError}</span></div>
+                      </>
+                    )}
                   </>
                 )}
                 {asrProvider === 'local' && <ModelPanel />}
@@ -148,18 +244,54 @@ export const SettingsWindow: React.FC = () => {
                   <>
                     <div className="nb-hr" />
                     <div className="nb-row">
-                      <span className="nb-label">{t('settings.apiKey')}</span>
-                      <input className="nb-input" type="password" value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)} placeholder={t('settings.apiKeyPlaceholder')} />
+                      <span className="nb-label">{t('provider.llmService')}</span>
+                      <NbSelect
+                        value={llmProvider}
+                        options={LLM_PROVIDERS.map((p) => ({
+                          value: p.key, label: p.name,
+                          icon: <span className="nb-provider-icon" style={{ background: p.color }}>{p.initial}</span>,
+                        }))}
+                        onChange={(v) => { setLlmProvider(v); setLlmTestResult('idle'); }}
+                      />
                     </div>
                     <div className="nb-hr" />
+                    {LLM_PROVIDERS.find((p) => p.key === llmProvider)?.authType !== 'none' && (
+                      <>
+                        <div className="nb-row">
+                          <span className="nb-label">{t('settings.apiKey')}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                            <input className="nb-input" type="password" value={llmApiKey}
+                              onChange={(e) => { setLlmApiKey(e.target.value); setLlmTestResult('idle'); }}
+                              placeholder={t('settings.apiKeyPlaceholder')} style={{ flex: 1 }} />
+                            <button
+                              className={`nb-btn nb-btn-test ${llmTesting ? 'nb-btn-test-loading' : ''} ${llmTestResult === 'ok' ? 'nb-btn-test-ok' : ''} ${llmTestResult === 'fail' ? 'nb-btn-test-fail' : ''}`}
+                              onClick={handleTestLlm} disabled={llmTesting || !llmApiKey}
+                            >
+                              {llmTesting ? t('test.testing') : llmTestResult === 'ok' ? '✓' : llmTestResult === 'fail' ? '✗' : t('test.button')}
+                            </button>
+                          </div>
+                        </div>
+                        {llmTestResult === 'fail' && (
+                          <>
+                            <div className="nb-hr" />
+                            <div className="nb-row"><span className="nb-label" /><span className="nb-value" style={{ color: '#e00', fontSize: 12 }}>{llmTestError}</span></div>
+                          </>
+                        )}
+                        <div className="nb-hr" />
+                      </>
+                    )}
                     <div className="nb-row">
                       <span className="nb-label">{t('settings.model')}</span>
-                      <NbSelect value={llmModel} options={LLM_MODELS.map((m) => ({ value: m, label: LLM_LABELS[m] || m }))} onChange={(v) => setLlmModel(v)} />
+                      <NbSelect value={llmModel}
+                        options={getLLMModels(llmProvider).map((m) => ({ value: m, label: m }))}
+                        onChange={(v) => setLlmModel(v)} />
                     </div>
                     <div className="nb-hr" />
                     <div className="nb-row">
                       <span className="nb-label">{t('settings.apiEndpoint')}</span>
-                      <input className="nb-input" type="text" value={llmBaseUrl} onChange={(e) => setLlmBaseUrl(e.target.value)} placeholder={t('settings.apiEndpointPlaceholder')} />
+                      <input className="nb-input" type="text" value={llmBaseUrl}
+                        onChange={(e) => setLlmBaseUrl(e.target.value)}
+                        placeholder={t('settings.apiEndpointPlaceholder')} />
                     </div>
                   </>
                 )}
@@ -198,7 +330,7 @@ export const SettingsWindow: React.FC = () => {
                 <div className="nb-hr" />
                 <div className="nb-row">
                   <span className="nb-label">{t('settings.muteOnRecord')}</span>
-                  <label className="nb-toggle"><input type="checkbox" checked={muteOnRecord} onChange={(e) => setMuteOnRecord(e.target.checked)} /><span className="nb-toggle-slider" /></label>
+                  <label className="nb-toggle"><input type="checkbox" checked={muteOnRecord} onChange={(e) => { setMuteOnRecord(e.target.checked); window.tingmo?.setMuteOnRecord(e.target.checked); }} /><span className="nb-toggle-slider" /></label>
                 </div>
               </div>
             </section>
@@ -261,6 +393,7 @@ export const SettingsWindow: React.FC = () => {
           </>
         )}
       </main>
+      </div>
     </div>
   );
 };
