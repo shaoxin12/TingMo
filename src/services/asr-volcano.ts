@@ -52,8 +52,9 @@ export class VolcanoASRProvider implements IRecognitionProvider {
 
       ws.on('open', () => {
         console.log('[Volcano ASR] WS connected');
-        // 1. Send FullClientRequest with audio config
-        const fullReq = buildFrame(MSG_FULL_REQUEST, JSON.stringify({
+
+        // Try text mode first: send FullClientRequest as raw JSON
+        const fullReqJson = JSON.stringify({
           user: { uid: 'tingmo' },
           audio: {
             format: 'wav',
@@ -68,59 +69,36 @@ export class VolcanoASRProvider implements IRecognitionProvider {
             enable_punctuation: true,
             result_type: 'single',
           },
-        }));
-        ws.send(fullReq);
-        console.log('[Volcano ASR] Sent FullClientRequest');
+        });
+        ws.send(fullReqJson); // Send as TEXT, not binary frame
+        console.log('[Volcano ASR] Sent FullClientRequest as text');
       });
 
       let receivedServerReady = false;
 
       ws.on('message', (raw: Buffer) => {
         try {
-          console.log('[Volcano ASR] Raw WS msg, size:', raw.length, 'first bytes:', raw.subarray(0, 16).toString('hex'));
-          const frames = parseFrames(raw);
-          for (const frame of frames) {
-            const payload = frame.payload;
-            const hex = payload.subarray(0, 32).toString('hex');
-            console.log('[Volcano ASR] Frame type:', frame.type.toString(16), 'size:', payload.length, 'hex:', hex);
+          const text = raw.toString('utf-8');
+          console.log('[Volcano ASR] Server msg:', text.slice(0, 400));
 
-            if (frame.type === 0x90 || frame.type === 0x91 || frame.type === 0x92) {
-              // Server response — try JSON
-              try {
-                const json = JSON.parse(payload.toString('utf-8'));
-                console.log('[Volcano ASR] Server JSON:', JSON.stringify(json).slice(0, 300));
+          let json: any = null;
+          try { json = JSON.parse(text); } catch { /* not JSON */ }
 
-                // Extract text from various response formats
-                const text =
-                  json.payload_msg?.result?.[0]?.text ||
-                  json.result?.text ||
-                  json.Result?.Text ||
-                  json.text ||
-                  '';
+          if (json) {
+            // Extract text from response
+            const resultText =
+              json.payload_msg?.result?.[0]?.text ||
+              json.result?.text ||
+              json.Result?.Text ||
+              json.text ||
+              '';
+            if (resultText) finalText = resultText;
 
-                if (text) {
-                  finalText = text;
-                }
-              } catch {
-                console.log('[Volcano ASR] Non-JSON server msg, size:', payload.length);
-              }
-
-              // Server ready — now send audio
-              if (!receivedServerReady) {
-                receivedServerReady = true;
-                console.log('[Volcano ASR] Server ready, sending audio');
-                sendAudioData(ws, audioBuffer);
-              }
-            }
-
-            if (frame.type === 0x94 || frame.type === 0x9E) {
-              // Audio end acknowledgment or final result
-              try {
-                const json = JSON.parse(payload.toString('utf-8'));
-                console.log('[Volcano ASR] Final:', JSON.stringify(json).slice(0, 200));
-                const text = json.payload_msg?.result?.[0]?.text || json.result?.text || '';
-                if (text) finalText = text;
-              } catch { /* ignore */ }
+            // Server ready — now send audio
+            if (!receivedServerReady) {
+              receivedServerReady = true;
+              console.log('[Volcano ASR] Server ready, sending audio');
+              sendAudioData(ws, audioBuffer);
             }
           }
         } catch (err: any) {
@@ -153,18 +131,19 @@ export class VolcanoASRProvider implements IRecognitionProvider {
 
 // ── Audio sending ──────────────────────────────────────────
 function sendAudioData(ws: WebSocket, audioBuffer: Buffer) {
-  const CHUNK = 16384;
-  // Skip WAV header (first 44 bytes) — send raw PCM
+  // Skip WAV header (first 44 bytes), send raw PCM as binary frames
   const pcmData = audioBuffer.length > 44 ? audioBuffer.subarray(44) : audioBuffer;
 
+  // Send all PCM data in binary frames (type 0x11 = audio only)
+  const CHUNK = 16384;
   for (let offset = 0; offset < pcmData.length; offset += CHUNK) {
     const chunk = pcmData.subarray(offset, Math.min(offset + CHUNK, pcmData.length));
-    ws.send(buildFrame(MSG_AUDIO_ONLY, chunk));
+    ws.send(buildFrame(MSG_AUDIO_ONLY, chunk)); // Send as binary frame
   }
 
-  // Send audio end
-  ws.send(buildFrame(MSG_AUDIO_END, Buffer.alloc(0)));
-  console.log('[Volcano ASR] Sent audio:', pcmData.length, 'bytes + audio_end');
+  // Send audio end as JSON text
+  ws.send(JSON.stringify({ type: 'audio_end' }));
+  console.log('[Volcano ASR] Sent audio PCM:', pcmData.length, 'bytes + audio_end');
 }
 
 // ── Binary frame protocol ──────────────────────────────────
