@@ -106,7 +106,7 @@ export const LLM_PROVIDERS: LLMProviderPreset[] = [
     authType: 'none', color: '#000000', initial: 'OL',
   },
   {
-    key: 'volcano', name: '火山引擎 (豆包)', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    key: 'volcano', name: '火山引擎', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
     defaultModel: 'doubao-lite-32k',
     models: [
       { value: 'doubao-lite-32k', label: '豆包 Lite 32K' },
@@ -129,7 +129,7 @@ export const ASR_CLOUD_PROVIDERS: ASRCloudProviderPreset[] = [
     authType: 'bearer', color: '#10A37F', initial: 'OA',
   },
   {
-    key: 'volcano', name: '火山引擎 (豆包语音)', endpoint: 'https://openspeech.bytedance.com/api/v3/auc/bigmodel',
+    key: 'volcano', name: '火山引擎', endpoint: 'https://openspeech.bytedance.com/api/v3/auc/bigmodel',
     defaultModel: 'bigmodel',
     models: [
       { value: 'bigmodel', label: '豆包语音识别 2.0' },
