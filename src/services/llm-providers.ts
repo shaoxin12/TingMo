@@ -132,7 +132,7 @@ export const ASR_CLOUD_PROVIDERS: ASRCloudProviderPreset[] = [
     key: 'volcano', name: '火山引擎', endpoint: 'https://openspeech.bytedance.com/api/v3/auc/bigmodel',
     defaultModel: 'bigmodel',
     models: [
-      { value: 'bigmodel', label: '豆包语音识别 2.0' },
+      { value: 'bigmodel', label: '豆包流式语音识别 2.0 小时版' },
     ],
     authType: 'apiKey', color: '#3370FF', initial: 'VH',
   },
