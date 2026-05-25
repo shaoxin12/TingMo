@@ -872,8 +872,13 @@ if (app) {
         } catch { /* ignore */ }
       });
 
-      // ── ASR Inference — always direct sherpa-onnx ─────────
-      {
+      // ── ASR Inference ────────────────────────────────────
+      if (recognitionReady && recognitionProvider) {
+        console.log('[Main] Using cloud ASR:', recognitionProvider.name);
+        const result = await recognitionProvider.transcribe(buf, 16000, language || 'auto');
+        text = result.text || '';
+        console.log('[Main] ASR result:', text.slice(0, 60));
+      } else {
         const fs = require('fs');
         const path = require('path');
         const sherpa = require('sherpa-onnx');
@@ -900,7 +905,7 @@ if (app) {
         text = rec.getResult(stream).text || '';
         stream.free();
         rec.free();
-        console.log('[Main] ASR result:', text);
+        console.log('[Main] ASR result (local):', text);
       }
 
       // Filter silence hallucinations — SenseVoice outputs spurious words for near-silent input
