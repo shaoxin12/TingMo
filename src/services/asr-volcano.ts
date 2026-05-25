@@ -39,7 +39,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
         },
         body: JSON.stringify({
           audio_format: 'wav',
-          audio_url: `data:audio/wav;base64,${wavBase64}`,
+          file_urls: [`data:audio/wav;base64,${wavBase64}`],
           model_name: this.model,
           enable_itn: true,
           enable_punctuation: true,
