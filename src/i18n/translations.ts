@@ -194,6 +194,20 @@ const D: Record<string, LocaleMap> = {
   'overview.estimatedSaved': { 'zh-CN': '预估节省时间','zh-TW': '預估節省時間',en: 'Time saved (est.)',   ja: '推定節約時間',      ko: '예상 절약 시간' },
   'overview.minutes':        { 'zh-CN': '分钟',       'zh-TW': '分鐘',       en: 'minutes',              ja: '分',                ko: '분' },
   'overview.last7Days':      { 'zh-CN': '近 7 天',    'zh-TW': '近 7 天',    en: 'Last 7 days',          ja: '過去7日間',         ko: '최근 7일' },
+
+  // ── Provider test button ────────────────────────────────
+  'test.button':          { 'zh-CN': '测试',       'zh-TW': '測試',       en: 'Test',          ja: 'テスト',       ko: '테스트' },
+  'test.testing':         { 'zh-CN': '测试中...',  'zh-TW': '測試中...',  en: 'Testing...',    ja: 'テスト中...',  ko: '테스트 중...' },
+  'test.success':         { 'zh-CN': '连接成功',   'zh-TW': '連接成功',   en: 'Connected',     ja: '接続成功',     ko: '연결 성공' },
+  'test.failed':          { 'zh-CN': '连接失败',   'zh-TW': '連接失敗',   en: 'Failed',        ja: '接続失敗',     ko: '연결 실패' },
+
+  // ── Provider labels ─────────────────────────────────────
+  'provider.asrService':  { 'zh-CN': '服务商',     'zh-TW': '服務商',     en: 'Provider',      ja: 'プロバイダ',   ko: '제공업체' },
+  'provider.llmService':  { 'zh-CN': '服务商',     'zh-TW': '服務商',     en: 'Provider',      ja: 'プロバイダ',   ko: '제공업체' },
+
+  // ── ASR cloud section ───────────────────────────────────
+  'model.asrCloudApiKey':     { 'zh-CN': 'API Key',  'zh-TW': 'API Key',  en: 'API Key',       ja: 'APIキー',       ko: 'API 키' },
+  'model.asrCloudApiKeyPlaceholder': { 'zh-CN': '请输入 API Key', 'zh-TW': '請輸入 API Key', en: 'Enter API Key', ja: 'APIキーを入力', ko: 'API 키 입력' },
 };
 
 export function translate(key: string, locale: Locale): string {

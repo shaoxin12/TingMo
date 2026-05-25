@@ -26,7 +26,11 @@ interface TingMoAPI {
   // LLM / Refinement
   getApiKey: () => Promise<string>;
   setApiKey: (key: string) => Promise<void>;
-  saveLlmSettings: (settings: { refineEnabled?: boolean; llmModel?: string; llmBaseUrl?: string; asrProvider?: string }) => Promise<void>;
+  saveLlmSettings: (settings: {
+    refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
+    llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
+    asrCloudProvider?: string; asrCloudApiKey?: string;
+  }) => Promise<void>;
   initRefinement: () => Promise<boolean>;
   getRefinementStatus: () => Promise<{ ready: boolean; provider: string | null }>;
   getSystemLocale: () => Promise<string>;
@@ -34,6 +38,7 @@ interface TingMoAPI {
   // App settings persistence
   loadAppSettings: () => Promise<Record<string, unknown>>;
   saveAppSettings: (settings: Record<string, unknown>) => Promise<void>;
+  setMuteOnRecord: (enabled: boolean) => Promise<void>;
   onSettingsChanged: (cb: (data: { muteOnRecord?: boolean; recordMode?: string }) => void) => () => void;
 
   // Model download
@@ -47,6 +52,17 @@ interface TingMoAPI {
   checkForUpdates: () => Promise<{ updateAvailable: boolean; version: string | null; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   installUpdate: () => Promise<void>;
+  // Provider connection testing
+  testAsrConnection: (provider: string, apiKey: string, endpoint: string) => Promise<{ ok: boolean; error?: string }>;
+  testLlmConnection: (provider: string, apiKey: string, model: string, baseUrl: string) => Promise<{ ok: boolean; error?: string }>;
+  // ASR cloud API key (separate from LLM)
+  setAsrCloudApiKey: (key: string) => Promise<void>;
+  getAsrCloudApiKey: () => Promise<string>;
+  // Window controls (frameless titlebar)
+  minimizeWindow: () => void;
+  maximizeWindow: () => void;
+  closeWindow: () => void;
+  onMaximizeChange: (cb: (maximized: boolean) => void) => () => void;
 }
 
 declare global {
