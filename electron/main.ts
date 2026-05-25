@@ -660,9 +660,11 @@ if (app) {
   ipcMain.handle('settings:save-app-settings', (_event, settings: Record<string, unknown>) => {
     try {
       const filepath = getDataPath('settings.json');
+      console.log('[Main] saveAppSettings called. hasKey:', !!settings.asrCloudApiKey, 'asrProvider:', settings.asrProvider);
       const existing = readJSON<any>(filepath, {});
       Object.assign(existing, settings);
       writeJSON(filepath, existing);
+      console.log('[Main] Written to:', filepath);
       if (typeof settings.recordMode === 'string') {
         recordMode = (settings as any).recordMode;
       }

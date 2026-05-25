@@ -102,16 +102,20 @@ export const SettingsWindow: React.FC = () => {
     }
   }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
-  // Save all settings to settings.json, then re-init
+  // Save ALL settings to settings.json on any change, then re-init
   useEffect(() => {
+    const payload = {
+      refineEnabled,
+      llmProvider, llmModel, llmBaseUrl, llmApiKey,
+      asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey,
+    };
+    console.log('[SettingsWindow] Saving:', JSON.stringify({ ...payload, llmApiKey: llmApiKey ? '***' : '', asrCloudApiKey: asrCloudApiKey ? '***' : '' }));
     (async () => {
-      await window.tingmo?.saveAppSettings({
-        refineEnabled,
-        llmProvider, llmModel, llmBaseUrl, llmApiKey,
-        asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey,
-      });
+      await window.tingmo?.saveAppSettings(payload);
+      console.log('[SettingsWindow] Save done. Re-initing...');
       await window.tingmo?.initRefinement();
       await window.tingmo?.reinitRecognition();
+      console.log('[SettingsWindow] Re-init done');
     })();
   }, [refineEnabled,
       llmProvider, llmModel, llmBaseUrl, llmApiKey,
