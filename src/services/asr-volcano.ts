@@ -184,11 +184,12 @@ function sendAudio(ws: WebSocket, audioBuffer: Buffer) {
 
   for (let offset = 0; offset < pcm.length; offset += CHUNK) {
     const chunk = pcm.subarray(offset, Math.min(offset + CHUNK, pcm.length));
-    const isLast = offset + CHUNK >= pcm.length;
-    const flags = isLast ? 0x2 : 0x0; // 0x2 = last packet (negative)
-    const frame = buildFrame(MT_AUDIO_ONLY, flags, SER_NONE, CMP_NONE, chunk);
+    const frame = buildFrame(MT_AUDIO_ONLY, 0x0, SER_NONE, CMP_NONE, chunk);
     ws.send(frame);
   }
 
-  console.log('[Volcano ASR] Sent', pcm.length, 'bytes PCM');
+  // Send empty last-packet frame to signal end-of-audio
+  const lastFrame = buildFrame(MT_AUDIO_ONLY, 0x2, SER_NONE, CMP_NONE, Buffer.alloc(0));
+  ws.send(lastFrame);
+  console.log('[Volcano ASR] Sent', pcm.length, 'bytes PCM + audio_end');
 }
