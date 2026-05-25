@@ -44,8 +44,8 @@ export const NbSelect: React.FC<Props> = ({ value, options, onChange }) => {
               className={`nb-select-opt ${o.value === value ? 'active' : ''}`}
               onClick={() => { onChange(o.value); setOpen(false); }}
             >
+              {o.icon && <span style={{ marginRight: 6 }}>{o.icon}</span>}
               {o.label}
-                {o.icon && <span style={{ marginLeft: 6 }}>{o.icon}</span>}
             </button>
           ))}
         </div>
