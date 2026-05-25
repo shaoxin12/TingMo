@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSettingsStore, TranslateLang, UILanguage } from '../../store/settings';
 import { useI18n } from '../../i18n/context';
 import { LLM_PROVIDERS, ASR_CLOUD_PROVIDERS, getLLMModels, getASRModels } from '../../services/llm-providers';
@@ -103,7 +103,10 @@ export const SettingsWindow: React.FC = () => {
   }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
   // Save all LLM/ASR/Key config to settings.json, then re-init providers
+  // Skip first render — only save on actual user changes, not mount defaults
+  const didMountRef = useRef(false);
   useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return; }
     (async () => {
       await window.tingmo?.saveAppSettings({
         refineEnabled,
