@@ -19,6 +19,8 @@ export interface ASRCloudProviderPreset {
   name: string;
   endpoint: string;
   authType: 'bearer' | 'apiKey';
+  defaultModel: string;
+  models: string[];
   color: string;
   initial: string;
 }
@@ -77,14 +79,18 @@ export const LLM_PROVIDERS: LLMProviderPreset[] = [
 export const ASR_CLOUD_PROVIDERS: ASRCloudProviderPreset[] = [
   {
     key: 'openai', name: 'OpenAI Whisper', endpoint: 'https://api.openai.com/v1',
+    defaultModel: 'whisper-1', models: ['whisper-1'],
     authType: 'bearer', color: '#10A37F', initial: 'OA',
   },
   {
     key: 'volcano', name: '火山引擎', endpoint: 'https://openspeech.bytedance.com/api/v3/auc/bigmodel',
+    defaultModel: 'bigmodel', models: ['bigmodel'],
     authType: 'apiKey', color: '#3370FF', initial: 'VH',
   },
   {
     key: 'aliyun', name: '阿里云百炼', endpoint: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+    defaultModel: 'fun-asr-realtime',
+    models: ['fun-asr-realtime', 'qwen3-asr-flash', 'paraformer-v1'],
     authType: 'bearer', color: '#FF6A00', initial: 'AL',
   },
 ];
@@ -99,4 +105,8 @@ export function getASRCloudProvider(key: string): ASRCloudProviderPreset | undef
 
 export function getLLMModels(key: string): string[] {
   return getLLMProvider(key)?.models || [];
+}
+
+export function getASRModels(key: string): string[] {
+  return getASRCloudProvider(key)?.models || [];
 }

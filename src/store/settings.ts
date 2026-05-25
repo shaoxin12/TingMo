@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getLLMProvider } from '../services/llm-providers';
+import { getLLMProvider, getASRCloudProvider } from '../services/llm-providers';
 
 export type ASRProvider = 'local' | 'cloud';
 export type RecordMode = 'toggle' | 'hold';
@@ -34,6 +34,7 @@ export interface SettingsState {
 
   // ASR cloud — independent from LLM
   asrCloudProvider: string;
+  asrCloudModel: string;
   asrCloudApiKey: string;
   polishMode: PolishMode;
   customPrompt: string;
@@ -62,6 +63,7 @@ export interface SettingsState {
   setLlmBaseUrl: (url: string) => void;
 
   setAsrCloudProvider: (p: string) => void;
+  setAsrCloudModel: (model: string) => void;
   setAsrCloudApiKey: (key: string) => void;
   setPolishMode: (mode: PolishMode) => void;
   setCustomPrompt: (prompt: string) => void;
@@ -97,6 +99,7 @@ function schedulePersist(state: SettingsState): void {
         uiLanguage: state.uiLanguage,
         llmProvider: state.llmProvider,
         asrCloudProvider: state.asrCloudProvider,
+        asrCloudModel: state.asrCloudModel,
       });
     }
   }, 300);
@@ -121,6 +124,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   llmBaseUrl: 'https://api.openai.com/v1',
 
   asrCloudProvider: 'openai',
+  asrCloudModel: 'whisper-1',
   asrCloudApiKey: '',
   polishMode: 'structured',
   customPrompt: '',
@@ -155,7 +159,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setLlmModel: (model) => set({ llmModel: model }),
   setLlmBaseUrl: (url) => set({ llmBaseUrl: url }),
 
-  setAsrCloudProvider: (p) => set({ asrCloudProvider: p }),
+  setAsrCloudProvider: (p) => {
+    const asrPreset = getASRCloudProvider(p);
+    set({ asrCloudProvider: p, asrCloudModel: asrPreset?.defaultModel || 'whisper-1' });
+  },
+  setAsrCloudModel: (model) => set({ asrCloudModel: model }),
   setAsrCloudApiKey: (key) => set({ asrCloudApiKey: key }),
   setPolishMode: (mode) => { set({ polishMode: mode }); schedulePersist(get()); },
   setCustomPrompt: (prompt) => { set({ customPrompt: prompt }); schedulePersist(get()); },
@@ -185,6 +193,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           uiLanguage: saved.uiLanguage || 'zh-CN',
           llmProvider: saved.llmProvider || 'openai',
           asrCloudProvider: saved.asrCloudProvider || 'openai',
+          asrCloudModel: saved.asrCloudModel || 'whisper-1',
         });
       }
     } catch (err) {

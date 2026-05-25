@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSettingsStore, TranslateLang, UILanguage } from '../../store/settings';
 import { useI18n } from '../../i18n/context';
-import { LLM_PROVIDERS, ASR_CLOUD_PROVIDERS, getLLMModels } from '../../services/llm-providers';
+import { LLM_PROVIDERS, ASR_CLOUD_PROVIDERS, getLLMModels, getASRModels } from '../../services/llm-providers';
 import { HotkeyRecorder } from './HotkeyRecorder';
 import { NbSelect } from './NbSelect';
 import { HomePanel } from './HomePanel';
@@ -51,6 +51,7 @@ export const SettingsWindow: React.FC = () => {
     llmModel, setLlmModel,
     llmBaseUrl, setLlmBaseUrl,
     asrCloudProvider, setAsrCloudProvider,
+    asrCloudModel, setAsrCloudModel,
     asrCloudApiKey, setAsrCloudApiKey,
     selectedMicDeviceId, setSelectedMicDeviceId,
     translateTarget, setTranslateTarget,
@@ -111,10 +112,12 @@ export const SettingsWindow: React.FC = () => {
 
   useEffect(() => {
     window.tingmo?.saveLlmSettings({
-      refineEnabled, llmProvider, llmModel, llmBaseUrl, asrProvider, asrCloudProvider,
+      refineEnabled, llmProvider, llmModel, llmBaseUrl,
+      asrProvider, asrCloudProvider, asrCloudModel,
     });
     window.tingmo?.initRefinement();
-  }, [refineEnabled, llmProvider, llmModel, llmBaseUrl, asrProvider, asrCloudProvider]);
+  }, [refineEnabled, llmProvider, llmModel, llmBaseUrl,
+      asrProvider, asrCloudProvider, asrCloudModel]);
 
   useEffect(() => {
     window.tingmo?.setUiLanguage(uiLanguage);
@@ -216,6 +219,13 @@ export const SettingsWindow: React.FC = () => {
                         }))}
                         onChange={(v) => { setAsrCloudProvider(v); setAsrTestResult('idle'); }}
                       />
+                    </div>
+                    <div className="nb-hr" />
+                    <div className="nb-row">
+                      <span className="nb-label">{t('settings.model')}</span>
+                      <NbSelect value={asrCloudModel}
+                        options={getASRModels(asrCloudProvider).map((m) => ({ value: m, label: m }))}
+                        onChange={(v) => setAsrCloudModel(v)} />
                     </div>
                     <div className="nb-hr" />
                     <div className="nb-row">

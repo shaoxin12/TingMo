@@ -132,11 +132,13 @@ async function initRecognition(): Promise<void> {
     if (provider === 'cloud') {
       // Read ASR cloud provider preference
       let asrCloudProviderKey = 'openai';
+      let asrCloudModel = 'whisper-1';
       try {
         const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
         if (fs.existsSync(settingsPath)) {
           const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
           asrCloudProviderKey = settings.asrCloudProvider || 'openai';
+          asrCloudModel = settings.asrCloudModel || 'whisper-1';
         }
       } catch { /* use default */ }
 
@@ -161,19 +163,19 @@ async function initRecognition(): Promise<void> {
         sendToRenderer('voice:refine-failed', { error: 'Cloud ASR: please configure an API key for ASR in Settings → Model.' });
       } else if (asrCloudProviderKey === 'openai') {
         const { FunASRCloudProvider } = require('../src/services/funasr-cloud');
-        recognitionProvider = new FunASRCloudProvider(asrApiKey, asrEndpoint, 'whisper-1');
+        recognitionProvider = new FunASRCloudProvider(asrApiKey, asrEndpoint, asrCloudModel);
         recognitionReady = await recognitionProvider.initialize();
-        console.log('[Main] Recognition ready (cloud:openai):', recognitionReady);
+        console.log('[Main] Recognition ready (cloud:openai):', asrCloudModel, recognitionReady);
       } else if (asrCloudProviderKey === 'volcano') {
         const { VolcanoASRProvider } = require('../src/services/asr-volcano');
-        recognitionProvider = new VolcanoASRProvider(asrApiKey);
+        recognitionProvider = new VolcanoASRProvider(asrApiKey, asrCloudModel);
         recognitionReady = await recognitionProvider.initialize();
-        console.log('[Main] Recognition ready (cloud:volcano):', recognitionReady);
+        console.log('[Main] Recognition ready (cloud:volcano):', asrCloudModel, recognitionReady);
       } else if (asrCloudProviderKey === 'aliyun') {
         const { AliyunASRProvider } = require('../src/services/asr-aliyun');
-        recognitionProvider = new AliyunASRProvider(asrApiKey);
+        recognitionProvider = new AliyunASRProvider(asrApiKey, asrCloudModel);
         recognitionReady = await recognitionProvider.initialize();
-        console.log('[Main] Recognition ready (cloud:aliyun):', recognitionReady);
+        console.log('[Main] Recognition ready (cloud:aliyun):', asrCloudModel, recognitionReady);
       }
     }
     if (provider === 'local') {
@@ -754,7 +756,7 @@ if (app) {
   ipcMain.handle('settings:save-llm-settings', (_event, settings: {
     refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
     llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
-    asrCloudProvider?: string; asrCloudApiKey?: string;
+    asrCloudProvider?: string; asrCloudModel?: string; asrCloudApiKey?: string;
   }) => {
     try {
       const fs = require('fs');

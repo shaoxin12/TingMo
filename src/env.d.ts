@@ -29,7 +29,7 @@ interface TingMoAPI {
   saveLlmSettings: (settings: {
     refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
     llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
-    asrCloudProvider?: string; asrCloudApiKey?: string;
+    asrCloudProvider?: string; asrCloudModel?: string; asrCloudApiKey?: string;
   }) => Promise<void>;
   initRefinement: () => Promise<boolean>;
   getRefinementStatus: () => Promise<{ ready: boolean; provider: string | null }>;

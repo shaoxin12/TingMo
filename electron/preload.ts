@@ -75,7 +75,7 @@ const api = {
   saveLlmSettings: (settings: {
     refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
     llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
-    asrCloudProvider?: string; asrCloudApiKey?: string;
+    asrCloudProvider?: string; asrCloudModel?: string; asrCloudApiKey?: string;
   }) => ipcRenderer.invoke('settings:save-llm-settings', settings),
   initRefinement: () => ipcRenderer.invoke('settings:init-refinement'),
   getRefinementStatus: () => ipcRenderer.invoke('settings:refinement-status'),

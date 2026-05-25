@@ -9,7 +9,7 @@ export class AliyunASRProvider implements IRecognitionProvider {
   readonly vadEnabled = false;
   isReady = false;
 
-  constructor(private apiKey: string) {}
+  constructor(private apiKey: string, private model: string = 'fun-asr-realtime') {}
 
   async initialize(): Promise<boolean> {
     if (!this.apiKey) {
@@ -36,7 +36,7 @@ export class AliyunASRProvider implements IRecognitionProvider {
           'X-DashScope-SSE': 'disable',
         },
         body: JSON.stringify({
-          model: 'fun-asr-realtime',
+          model: this.model,
           input: {
             messages: [{
               role: 'user',

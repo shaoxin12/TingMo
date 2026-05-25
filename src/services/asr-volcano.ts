@@ -10,7 +10,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
   readonly vadEnabled = false;
   isReady = false;
 
-  constructor(private apiKey: string) {}
+  constructor(private apiKey: string, private model: string = 'bigmodel') {}
 
   async initialize(): Promise<boolean> {
     if (!this.apiKey) {
@@ -42,7 +42,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
         body: JSON.stringify({
           audio_format: 'wav',
           audio_data: wavBase64,
-          model_name: 'bigmodel',
+          model_name: this.model,
           enable_itn: true,
           enable_punctuation: true,
           language: 'auto',
