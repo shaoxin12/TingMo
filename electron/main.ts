@@ -142,15 +142,13 @@ async function initRecognition(): Promise<void> {
         }
       } catch { /* use default */ }
 
-      // Read ASR cloud API key (separate from LLM key)
+      // Read ASR cloud API key from llm-settings.json
       let asrApiKey = '';
       try {
-        const asrKeyPath = join(app.getPath('userData'), 'data', 'asr-apikey.enc');
-        if (fs.existsSync(asrKeyPath)) {
-          try {
-            const encrypted = fs.readFileSync(asrKeyPath);
-            asrApiKey = require('electron').safeStorage.decryptString(encrypted);
-          } catch { /* not decryptable */ }
+        const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
+        if (fs.existsSync(settingsPath)) {
+          const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+          asrApiKey = settings._asrApiKey || '';
         }
       } catch { /* ignore */ }
 
@@ -215,25 +213,16 @@ let refinementReady = false;
 
 async function initRefinement(): Promise<void> {
   try {
-    const { safeStorage } = require('electron');
     const fs = require('fs');
-    const apiKeyPath = join(app.getPath('userData'), 'data', 'apikey.enc');
-
-    let apiKey = '';
-    if (fs.existsSync(apiKeyPath)) {
-      try {
-        const encrypted = fs.readFileSync(apiKeyPath);
-        apiKey = safeStorage.decryptString(encrypted);
-      } catch { /* key not decryptable */ }
-    }
-
     const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
+    let apiKey = '';
     let llmProviderKey = 'openai';
     let model = 'gpt-4o-mini';
     let baseUrl = 'https://api.openai.com/v1';
     if (fs.existsSync(settingsPath)) {
       try {
         const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        apiKey = settings._llmApiKey || '';
         llmProviderKey = settings.llmProvider || 'openai';
         model = settings.llmModel || model;
         baseUrl = settings.llmBaseUrl || baseUrl;
@@ -611,42 +600,31 @@ if (app) {
   });
 
   ipcMain.handle('settings:set-asr-cloud-api-key', async (_event, key: string) => {
+    // Store ASR key in llm-settings.json alongside other ASR config
     try {
       const fs = require('fs');
       const dir = join(app.getPath('userData'), 'data');
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const filePath = join(dir, 'asr-apikey.enc');
-      // Try DPAPI encryption; fall back to base64 if unavailable
-      try {
-        const { safeStorage } = require('electron');
-        if (safeStorage.isEncryptionAvailable()) {
-          fs.writeFileSync(filePath, safeStorage.encryptString(key));
-        } else {
-          fs.writeFileSync(filePath, Buffer.from(key, 'utf-8').toString('base64'), 'utf-8');
-        }
-      } catch {
-        fs.writeFileSync(filePath, Buffer.from(key, 'utf-8').toString('base64'), 'utf-8');
+      const settingsPath = join(dir, 'llm-settings.json');
+      let existing: any = {};
+      if (fs.existsSync(settingsPath)) {
+        try { existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch { /* ignore */ }
       }
-      console.log('[Main] ASR cloud API key saved, length:', key.length);
+      existing._asrApiKey = key;
+      fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
+      console.log('[Main] ASR key saved to llm-settings.json');
     } catch (err: any) {
-      console.error('[Main] Failed to save ASR cloud API key:', err.message);
+      console.error('[Main] Failed to save ASR key:', err.message);
     }
   });
 
   ipcMain.handle('settings:get-asr-cloud-api-key', async () => {
     try {
       const fs = require('fs');
-      const keyPath = join(app.getPath('userData'), 'data', 'asr-apikey.enc');
-      if (!fs.existsSync(keyPath)) return '';
-      const data = fs.readFileSync(keyPath);
-      // Try DPAPI decrypt; fall back to base64
-      try {
-        const { safeStorage } = require('electron');
-        if (safeStorage.isEncryptionAvailable()) {
-          return safeStorage.decryptString(data);
-        }
-      } catch { /* fall through */ }
-      return Buffer.from(data.toString('utf-8'), 'base64').toString('utf-8');
+      const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
+      if (!fs.existsSync(settingsPath)) return '';
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      return settings._asrApiKey || '';
     } catch {
       return '';
     }
@@ -743,12 +721,10 @@ if (app) {
   ipcMain.handle('settings:get-api-key', () => {
     try {
       const fs = require('fs');
-      const { safeStorage } = require('electron');
-      const apiKeyPath = join(app.getPath('userData'), 'data', 'apikey.enc');
-      if (fs.existsSync(apiKeyPath)) {
-        const encrypted = fs.readFileSync(apiKeyPath);
-        return safeStorage.decryptString(encrypted);
-      }
+      const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
+      if (!fs.existsSync(settingsPath)) return '';
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      return settings._llmApiKey || '';
     } catch { /* ignore */ }
     return '';
   });
@@ -756,13 +732,17 @@ if (app) {
   ipcMain.handle('settings:set-api-key', (_event, key: string) => {
     try {
       const fs = require('fs');
-      const { safeStorage } = require('electron');
       const dir = join(app.getPath('userData'), 'data');
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const encrypted = safeStorage.encryptString(key);
-      fs.writeFileSync(join(dir, 'apikey.enc'), encrypted);
+      const settingsPath = join(dir, 'llm-settings.json');
+      let existing: any = {};
+      if (fs.existsSync(settingsPath)) {
+        try { existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch { /* ignore */ }
+      }
+      existing._llmApiKey = key;
+      fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
     } catch (err: any) {
-      console.error('[Main] Failed to save API key:', err.message);
+      console.error('[Main] Failed to save LLM key:', err.message);
     }
   });
 
