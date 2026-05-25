@@ -84,8 +84,8 @@ export const ASR_CLOUD_PROVIDERS: ASRCloudProviderPreset[] = [
     authType: 'apiKey', color: '#3370FF', initial: 'VH',
   },
   {
-    key: 'aliyun', name: '阿里云', endpoint: 'https://nls-gateway.cn-shanghai.aliyuncs.com/stream/v1/asr',
-    authType: 'apiKey', color: '#FF6A00', initial: 'AL',
+    key: 'aliyun', name: '阿里云百炼', endpoint: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+    authType: 'bearer', color: '#FF6A00', initial: 'AL',
   },
 ];
 

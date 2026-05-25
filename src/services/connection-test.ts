@@ -40,13 +40,35 @@ export async function testAsrConnection(
         headers['X-Api-Resource-Id'] = 'volc.seedasr.auc';
         headers['X-Api-Request-Id'] = crypto.randomUUID();
       } else if (provider === 'aliyun') {
-        // Aliyun: just verify the token — no need to send audio
+        // DashScope FunASR: verify the API key via a minimal request
         clearTimeout(timer);
-        const token = await getAliyunToken(apiKey);
-        if (!token) {
-          return { ok: false, error: '获取阿里云 Token 失败，请检查 AppKey 是否正确' };
+        try {
+          const testCtrl = new AbortController();
+          const testTimer = setTimeout(() => testCtrl.abort(), 8000);
+          const testRes = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+              'X-DashScope-SSE': 'disable',
+            },
+            body: JSON.stringify({
+              model: 'fun-asr-realtime',
+              input: { messages: [{ role: 'user', content: [{ text: 'test' }] }] },
+              parameters: {},
+            }),
+            signal: testCtrl.signal,
+          });
+          clearTimeout(testTimer);
+          if (testRes.status === 401 || testRes.status === 403) {
+            return { ok: false, error: `密钥无效 (HTTP ${testRes.status})`, status: testRes.status };
+          }
+          // 400 = bad request params but key is valid; 200 = success
+          return { ok: true };
+        } catch (err2: any) {
+          if (err2.name === 'AbortError') return { ok: false, error: '连接超时，请检查网络' };
+          return { ok: false, error: `网络错误: ${err2.message?.slice(0, 100)}` };
         }
-        return { ok: true };
       }
       res = await fetch(endpoint, {
         method: 'POST',
@@ -147,18 +169,4 @@ function buildWavHeader(dataSize: number, sampleRate: number): Buffer {
   buf.write('data', 36);
   buf.writeUInt32LE(dataSize, 40);
   return buf;
-}
-
-async function getAliyunToken(appKey: string): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://nls-meta.cn-shanghai.aliyuncs.com/pop/2018-05-18/tokens?appKey=${appKey}`,
-      { method: 'POST', signal: AbortSignal.timeout(5000) },
-    );
-    if (!res.ok) return null;
-    const json: any = await res.json();
-    return json?.Token?.Id || null;
-  } catch {
-    return null;
-  }
 }

@@ -1,49 +1,53 @@
+// AliyunASRProvider — 阿里云百炼 DashScope FunASR (Bearer API Key)
 import type { IRecognitionProvider, RecognitionResult } from './speech-recognition';
 
-const ASR_ENDPOINT = 'https://nls-gateway.cn-shanghai.aliyuncs.com/stream/v1/asr';
+const ENDPOINT = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
 
 export class AliyunASRProvider implements IRecognitionProvider {
-  readonly name = 'Aliyun ASR';
+  readonly name = 'Aliyun FunASR';
   readonly type = 'api' as const;
   readonly vadEnabled = false;
   isReady = false;
-  private token: string | null = null;
-  private tokenExpiry = 0;
 
-  constructor(private appKey: string) {}
+  constructor(private apiKey: string) {}
 
   async initialize(): Promise<boolean> {
-    if (!this.appKey) {
+    if (!this.apiKey) {
       this.isReady = false;
       return false;
     }
-    try {
-      await this.ensureToken();
-      this.isReady = true;
-      console.log('[Aliyun ASR] Ready');
-      return true;
-    } catch {
-      this.isReady = false;
-      return false;
-    }
+    this.isReady = true;
+    console.log('[Aliyun FunASR] Ready');
+    return true;
   }
 
-  async transcribe(audioBuffer: Buffer, _sampleRate: number, _lang?: string): Promise<RecognitionResult> {
+  async transcribe(audioBuffer: Buffer, sampleRate: number, _lang?: string): Promise<RecognitionResult> {
     const t0 = performance.now();
-    await this.ensureToken();
 
     try {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000);
+      const timer = setTimeout(() => ctrl.abort(), 20000);
 
-      const url = `${ASR_ENDPOINT}?appkey=${this.appKey}`;
-      const res = await fetch(url, {
+      const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: {
-          'Content-Type': 'audio/wav',
-          'X-NLS-Token': this.token!,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'X-DashScope-SSE': 'disable',
         },
-        body: new Uint8Array(audioBuffer),
+        body: JSON.stringify({
+          model: 'fun-asr-realtime',
+          input: {
+            messages: [{
+              role: 'user',
+              content: [{ audio: audioBuffer.toString('base64') }],
+            }],
+          },
+          parameters: {
+            format: 'wav',
+            sample_rate: sampleRate || 16000,
+          },
+        }),
         signal: ctrl.signal,
       });
 
@@ -51,47 +55,26 @@ export class AliyunASRProvider implements IRecognitionProvider {
 
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
-        throw new Error(`Aliyun ASR ${res.status}: ${errText.slice(0, 200)}`);
+        throw new Error(`DashScope ASR ${res.status}: ${errText.slice(0, 200)}`);
       }
 
       const json: any = await res.json();
-      const text = json.result || json.Result || '';
-      console.log('[Aliyun ASR] Result:', text.slice(0, 60));
+      const text = json?.output?.choices?.[0]?.message?.content?.[0]?.text?.trim() || '';
+
+      console.log('[Aliyun FunASR] Result:', text.slice(0, 60));
 
       return {
-        text: text.trim(),
+        text,
         durationMs: performance.now() - t0,
         language: 'zh',
       };
     } catch (err: any) {
-      console.error('[Aliyun ASR] Transcription failed:', err.message);
+      console.error('[Aliyun FunASR] Transcription failed:', err.message);
       throw err;
     }
   }
 
   async dispose(): Promise<void> {
     this.isReady = false;
-    this.token = null;
-  }
-
-  private async ensureToken(): Promise<void> {
-    if (this.token && Date.now() < this.tokenExpiry) return;
-
-    const res = await fetch(
-      `https://nls-meta.cn-shanghai.aliyuncs.com/pop/2018-05-18/tokens?appKey=${this.appKey}`,
-      { method: 'POST', signal: AbortSignal.timeout(5000) },
-    );
-
-    if (!res.ok) {
-      throw new Error(`Aliyun token request failed: ${res.status}`);
-    }
-
-    const json: any = await res.json();
-    if (!json.Token?.Id) {
-      throw new Error('Aliyun token response missing Token.Id field');
-    }
-
-    this.token = json.Token.Id;
-    this.tokenExpiry = Date.now() + (json.Token.ExpireTime || 3600) * 1000 * 0.9;
   }
 }
