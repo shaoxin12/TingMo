@@ -83,10 +83,11 @@ export async function testAsrConnection(
     if (res.status === 401 || res.status === 403) {
       return { ok: false, error: `密钥无效 (HTTP ${res.status})`, status: res.status };
     }
-    if (res.ok || res.status >= 400) {
+    if (res.ok) {
       return { ok: true };
     }
-    return { ok: false, error: `服务器错误 (HTTP ${res.status})`, status: res.status };
+    const errText = await res.text().catch(() => '');
+    return { ok: false, error: `请求失败 (HTTP ${res.status}): ${errText.slice(0, 100)}`, status: res.status };
   } catch (err: any) {
     if (err.name === 'AbortError') {
       return { ok: false, error: '连接超时，请检查网络或端点地址' };
