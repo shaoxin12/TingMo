@@ -102,29 +102,20 @@ export const SettingsWindow: React.FC = () => {
     }
   }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
-  useEffect(() => {
-    window.tingmo?.setApiKey(llmApiKey);
-  }, [llmApiKey]);
-
-  // ASR cloud: persist key first, then settings, then re-init
-  useEffect(() => {
-    (async () => {
-      await window.tingmo?.setAsrCloudApiKey(asrCloudApiKey);
-      await window.tingmo?.saveLlmSettings({
-        refineEnabled, llmProvider, llmModel, llmBaseUrl,
-        asrProvider, asrCloudProvider, asrCloudModel,
-      });
-      await window.tingmo?.reinitRecognition();
-    })();
-  }, [asrCloudApiKey, asrProvider, asrCloudProvider, asrCloudModel]);
-
+  // Persist ALL settings + keys in a single save, then re-init providers
   useEffect(() => {
     window.tingmo?.saveLlmSettings({
-      refineEnabled, llmProvider, llmModel, llmBaseUrl,
+      refineEnabled,
+      llmProvider, llmModel, llmBaseUrl,
+      llmApiKey,
       asrProvider, asrCloudProvider, asrCloudModel,
+      asrCloudApiKey,
     });
     window.tingmo?.initRefinement();
-  }, [refineEnabled, llmProvider, llmModel, llmBaseUrl]);
+    window.tingmo?.reinitRecognition();
+  }, [refineEnabled,
+      llmProvider, llmModel, llmBaseUrl, llmApiKey,
+      asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey]);
 
   useEffect(() => {
     window.tingmo?.setUiLanguage(uiLanguage);

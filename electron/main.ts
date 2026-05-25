@@ -148,7 +148,7 @@ async function initRecognition(): Promise<void> {
         const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
         if (fs.existsSync(settingsPath)) {
           const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-          asrApiKey = settings._asrApiKey || '';
+          asrApiKey = settings.asrCloudApiKey || '';
         }
       } catch { /* ignore */ }
 
@@ -610,7 +610,7 @@ if (app) {
       if (fs.existsSync(settingsPath)) {
         try { existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch { /* ignore */ }
       }
-      existing._asrApiKey = key;
+      existing.asrCloudApiKey = key;
       fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
       console.log('[Main] ASR key saved to llm-settings.json');
     } catch (err: any) {
@@ -624,7 +624,7 @@ if (app) {
       const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
       if (!fs.existsSync(settingsPath)) return '';
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-      return settings._asrApiKey || '';
+      return settings.asrCloudApiKey || '';
     } catch {
       return '';
     }
@@ -724,7 +724,7 @@ if (app) {
       const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
       if (!fs.existsSync(settingsPath)) return '';
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-      return settings._llmApiKey || '';
+      return settings.llmApiKey || '';
     } catch { /* ignore */ }
     return '';
   });
