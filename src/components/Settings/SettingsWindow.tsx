@@ -102,17 +102,19 @@ export const SettingsWindow: React.FC = () => {
     }
   }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
-  // Persist ALL settings + keys in a single save, then re-init providers
+  // Persist ALL settings + keys, then re-init providers IN ORDER
   useEffect(() => {
-    window.tingmo?.saveLlmSettings({
-      refineEnabled,
-      llmProvider, llmModel, llmBaseUrl,
-      llmApiKey,
-      asrProvider, asrCloudProvider, asrCloudModel,
-      asrCloudApiKey,
-    });
-    window.tingmo?.initRefinement();
-    window.tingmo?.reinitRecognition();
+    (async () => {
+      await window.tingmo?.saveLlmSettings({
+        refineEnabled,
+        llmProvider, llmModel, llmBaseUrl,
+        llmApiKey,
+        asrProvider, asrCloudProvider, asrCloudModel,
+        asrCloudApiKey,
+      });
+      await window.tingmo?.initRefinement();
+      await window.tingmo?.reinitRecognition();
+    })();
   }, [refineEnabled,
       llmProvider, llmModel, llmBaseUrl, llmApiKey,
       asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey]);
