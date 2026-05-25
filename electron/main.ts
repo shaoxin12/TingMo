@@ -119,31 +119,14 @@ async function initRecognition(): Promise<void> {
   try {
     const fs = require('fs');
 
-    // Read ASR settings from settings.json
-    let provider: 'local' | 'cloud' = 'local';
-    let asrCloudProviderKey = 'openai';
-    let asrCloudModel = 'whisper-1';
-    try {
-      const filepath = getDataPath('settings.json');
-      if (fs.existsSync(filepath)) {
-        const appSettings = readJSON<any>(filepath, {});
-        provider = appSettings.asrProvider || 'local';
-        asrCloudProviderKey = appSettings.asrCloudProvider || 'openai';
-        asrCloudModel = appSettings.asrCloudModel || 'whisper-1';
-      }
-    } catch { /* use default */ }
+    // Read ASR settings + key from settings.json
+    const appSettings = readJSON<any>(getDataPath('settings.json'), {});
+    const provider: 'local' | 'cloud' = appSettings.asrProvider || 'local';
+    const asrCloudProviderKey: string = appSettings.asrCloudProvider || 'openai';
+    const asrCloudModel: string = appSettings.asrCloudModel || 'whisper-1';
+    const asrApiKey: string = appSettings.asrCloudApiKey || '';
 
     if (provider === 'cloud') {
-
-      // Read ASR cloud API key from settings.json
-      let asrApiKey = '';
-      try {
-        const filepath = getDataPath('settings.json');
-        if (fs.existsSync(filepath)) {
-          const appSettings = readJSON<any>(filepath, {});
-          asrApiKey = appSettings.asrCloudApiKey || '';
-        }
-      } catch { /* ignore */ }
 
       const preset = getASRCloudProvider(asrCloudProviderKey);
       const asrEndpoint = preset?.endpoint || 'https://api.openai.com/v1';
