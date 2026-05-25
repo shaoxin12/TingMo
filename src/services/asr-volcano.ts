@@ -25,7 +25,6 @@ export class VolcanoASRProvider implements IRecognitionProvider {
   async transcribe(audioBuffer: Buffer, _sampleRate: number, _lang?: string): Promise<RecognitionResult> {
     const t0 = performance.now();
     const wavBase64 = audioBuffer.toString('base64');
-    const taskId = crypto.randomUUID();
 
     try {
       const submitCtrl = new AbortController();
@@ -37,7 +36,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
           'Content-Type': 'application/json',
           'X-Api-Key': this.apiKey,
           'X-Api-Resource-Id': RESOURCE_ID,
-          'X-Api-Request-Id': taskId,
+          'X-Api-Request-Id': crypto.randomUUID(),
         },
         body: JSON.stringify({
           audio_format: 'wav',
@@ -58,7 +57,8 @@ export class VolcanoASRProvider implements IRecognitionProvider {
       }
 
       const submitJson: any = await submitRes.json();
-      const pollTaskId = submitJson.task_id || taskId;
+      const pollTaskId = submitJson.task_id || submitJson.TaskId || '';
+      console.log('[Volcano ASR] Submit OK, taskId:', pollTaskId);
 
       for (let i = 0; i < 30; i++) {
         await sleep(1000);
@@ -74,20 +74,27 @@ export class VolcanoASRProvider implements IRecognitionProvider {
           body: JSON.stringify({ task_id: pollTaskId }),
         });
 
-        if (!pollRes.ok) continue;
+        if (!pollRes.ok) {
+          const errText = await pollRes.text().catch(() => '');
+          console.log('[Volcano ASR] Query failed', pollRes.status, errText.slice(0, 200));
+          continue;
+        }
 
         const pollJson: any = await pollRes.json();
-        if (pollJson.status === 'completed') {
-          const text = pollJson.result?.text || pollJson.text || '';
-          console.log('[Volcano ASR] Result:', text.slice(0, 60));
+        console.log('[Volcano ASR] Query response:', JSON.stringify(pollJson).slice(0, 300));
+
+        const status = pollJson.status || pollJson.Status || '';
+        if (status === 'completed' || status === 'COMPLETED') {
+          const text = pollJson.result?.text || pollJson.text || pollJson.Result?.Text || '';
+          console.log('[Volcano ASR] Result:', text.slice(0, 80));
           return {
             text: text.trim(),
             durationMs: performance.now() - t0,
             language: pollJson.result?.language || 'zh',
           };
         }
-        if (pollJson.status === 'failed') {
-          throw new Error(`Volcano ASR recognition failed: ${pollJson.message || 'unknown'}`);
+        if (status === 'failed' || status === 'FAILED') {
+          throw new Error(`Volcano ASR failed: ${pollJson.message || pollJson.Message || 'unknown'}`);
         }
       }
 
