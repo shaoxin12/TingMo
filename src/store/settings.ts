@@ -175,6 +175,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const w = window as any;
       if (!w.tingmo?.loadAppSettings) return;
       const saved = await w.tingmo.loadAppSettings();
+
+      // Restore encrypted API keys from main process
+      let llmApiKey = '';
+      let asrCloudApiKey = '';
+      try {
+        llmApiKey = await w.tingmo?.getApiKey() || '';
+        asrCloudApiKey = await w.tingmo?.getAsrCloudApiKey() || '';
+      } catch { /* ignore */ }
+
       if (saved && Object.keys(saved).length > 0) {
         set({
           asrProvider: saved.asrProvider || 'local',
@@ -192,8 +201,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           selectedMicDeviceId: saved.selectedMicDeviceId || '',
           uiLanguage: saved.uiLanguage || 'zh-CN',
           llmProvider: saved.llmProvider || 'openai',
+          llmApiKey,
           asrCloudProvider: saved.asrCloudProvider || 'openai',
           asrCloudModel: saved.asrCloudModel || 'whisper-1',
+          asrCloudApiKey,
         });
       }
     } catch (err) {
