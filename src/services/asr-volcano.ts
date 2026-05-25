@@ -57,7 +57,8 @@ export class VolcanoASRProvider implements IRecognitionProvider {
       }
 
       const submitJson: any = await submitRes.json();
-      const pollTaskId = submitJson.task_id || submitJson.TaskId || '';
+      console.log('[Volcano ASR] Submit response:', JSON.stringify(submitJson));
+      const pollTaskId = submitJson.task_id || submitJson.TaskId || submitJson.id || submitJson.Id || '';
       console.log('[Volcano ASR] Submit OK, taskId:', pollTaskId);
 
       for (let i = 0; i < 30; i++) {
