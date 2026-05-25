@@ -102,15 +102,13 @@ export const SettingsWindow: React.FC = () => {
     }
   }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
-  // Persist ALL settings + keys, then re-init providers IN ORDER
+  // Save all settings to settings.json, then re-init
   useEffect(() => {
     (async () => {
-      await window.tingmo?.saveLlmSettings({
+      await window.tingmo?.saveAppSettings({
         refineEnabled,
-        llmProvider, llmModel, llmBaseUrl,
-        llmApiKey,
-        asrProvider, asrCloudProvider, asrCloudModel,
-        asrCloudApiKey,
+        llmProvider, llmModel, llmBaseUrl, llmApiKey,
+        asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey,
       });
       await window.tingmo?.initRefinement();
       await window.tingmo?.reinitRecognition();
