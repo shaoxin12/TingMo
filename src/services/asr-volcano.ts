@@ -165,15 +165,27 @@ interface WsResponse {
 
 function parseResponse(data: Buffer): WsResponse {
   try {
-    // Try JSON first
-    const text = data.toString('utf-8');
+    // Volcano WS binary protocol: 4-byte header + 4-byte size + payload
+    // Try parsing as JSON from offset 8 first (skip binary frame header)
+    let text: string;
+    if (data.length > 8 && data.readUInt8(0) === 1) {
+      text = data.subarray(8).toString('utf-8');
+    } else {
+      text = data.toString('utf-8');
+    }
     const json = JSON.parse(text);
-    const type = json.type || json.payload_msg?.type || '';
-    return {
-      type,
-      text: json.payload_msg?.result?.[0]?.text || json.result?.text || '',
-    };
+    // Try multiple response formats
+    const type = json.type || json.payload_msg?.type || json.header?.message || '';
+    const resultText =
+      json.payload_msg?.result?.[0]?.text ||
+      json.result?.text ||
+      json.result?.Result?.Text ||
+      json.Result?.Text ||
+      '';
+    return { type, text: resultText };
   } catch {
+    // Raw binary — log length
+    console.log('[Volcano ASR] Raw binary msg, size:', data.length);
     return { type: 'binary' };
   }
 }
