@@ -70,23 +70,35 @@ export const SettingsWindow: React.FC = () => {
     setAsrTesting(true);
     setAsrTestResult('idle');
     setAsrTestError('');
-    await window.tingmo?.setAsrCloudApiKey(asrCloudApiKey);
-    const preset = ASR_CLOUD_PROVIDERS.find((p) => p.key === asrCloudProvider);
-    const result = await window.tingmo?.testAsrConnection(asrCloudProvider, asrCloudApiKey, preset?.endpoint || '');
-    setAsrTesting(false);
-    if (result?.ok) { setAsrTestResult('ok'); }
-    else { setAsrTestResult('fail'); setAsrTestError(result?.error || t('test.failed')); }
+    try {
+      await window.tingmo?.setAsrCloudApiKey(asrCloudApiKey);
+      const preset = ASR_CLOUD_PROVIDERS.find((p) => p.key === asrCloudProvider);
+      const result = await window.tingmo?.testAsrConnection(asrCloudProvider, asrCloudApiKey, preset?.endpoint || '');
+      if (result?.ok) { setAsrTestResult('ok'); }
+      else { setAsrTestResult('fail'); setAsrTestError(result?.error || t('test.failed')); }
+    } catch (err: any) {
+      setAsrTestResult('fail');
+      setAsrTestError(err?.message || t('test.failed'));
+    } finally {
+      setAsrTesting(false);
+    }
   }, [asrCloudProvider, asrCloudApiKey, t]);
 
   const handleTestLlm = useCallback(async () => {
     setLlmTesting(true);
     setLlmTestResult('idle');
     setLlmTestError('');
-    await window.tingmo?.setApiKey(llmApiKey);
-    const result = await window.tingmo?.testLlmConnection(llmProvider, llmApiKey, llmModel, llmBaseUrl);
-    setLlmTesting(false);
-    if (result?.ok) { setLlmTestResult('ok'); }
-    else { setLlmTestResult('fail'); setLlmTestError(result?.error || t('test.failed')); }
+    try {
+      await window.tingmo?.setApiKey(llmApiKey);
+      const result = await window.tingmo?.testLlmConnection(llmProvider, llmApiKey, llmModel, llmBaseUrl);
+      if (result?.ok) { setLlmTestResult('ok'); }
+      else { setLlmTestResult('fail'); setLlmTestError(result?.error || t('test.failed')); }
+    } catch (err: any) {
+      setLlmTestResult('fail');
+      setLlmTestError(err?.message || t('test.failed'));
+    } finally {
+      setLlmTesting(false);
+    }
   }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
   useEffect(() => {

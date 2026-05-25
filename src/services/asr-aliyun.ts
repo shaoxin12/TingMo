@@ -87,11 +87,11 @@ export class AliyunASRProvider implements IRecognitionProvider {
     }
 
     const json: any = await res.json();
-    if (!json.Token) {
-      throw new Error('Aliyun token response missing Token field');
+    if (!json.Token?.Id) {
+      throw new Error('Aliyun token response missing Token.Id field');
     }
 
-    this.token = json.Token;
-    this.tokenExpiry = Date.now() + (json.ExpireTime || 3600) * 1000 * 0.9;
+    this.token = json.Token.Id;
+    this.tokenExpiry = Date.now() + (json.Token.ExpireTime || 3600) * 1000 * 0.9;
   }
 }

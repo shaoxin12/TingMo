@@ -40,12 +40,13 @@ export async function testAsrConnection(
         headers['X-Api-Resource-Id'] = 'volc.seedasr.auc';
         headers['X-Api-Request-Id'] = crypto.randomUUID();
       } else if (provider === 'aliyun') {
+        // Aliyun: just verify the token — no need to send audio
+        clearTimeout(timer);
         const token = await getAliyunToken(apiKey);
         if (!token) {
-          clearTimeout(timer);
-          return { ok: false, error: 'Failed to get Aliyun token from appKey' };
+          return { ok: false, error: '获取阿里云 Token 失败，请检查 AppKey 是否正确' };
         }
-        headers['X-NLS-Token'] = token;
+        return { ok: true };
       }
       res = await fetch(endpoint, {
         method: 'POST',
@@ -156,7 +157,7 @@ async function getAliyunToken(appKey: string): Promise<string | null> {
     );
     if (!res.ok) return null;
     const json: any = await res.json();
-    return json?.Token || null;
+    return json?.Token?.Id || null;
   } catch {
     return null;
   }
