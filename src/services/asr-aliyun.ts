@@ -28,6 +28,22 @@ export class AliyunASRProvider implements IRecognitionProvider {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 20000);
 
+      const body = JSON.stringify({
+        model: this.model,
+        input: {
+          messages: [{
+            role: 'user',
+            content: [{ audio: `data:audio/wav;base64,${audioBuffer.toString('base64')}` }],
+          }],
+        },
+        parameters: {
+          format: 'wav',
+          sample_rate: sampleRate || 16000,
+        },
+      });
+
+      console.log('[Aliyun FunASR] Sending request, body size:', body.length);
+
       const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: {
@@ -35,19 +51,7 @@ export class AliyunASRProvider implements IRecognitionProvider {
           'Authorization': `Bearer ${this.apiKey}`,
           'X-DashScope-SSE': 'disable',
         },
-        body: JSON.stringify({
-          model: this.model,
-          input: {
-            messages: [{
-              role: 'user',
-              content: [{ audio: audioBuffer.toString('base64') }],
-            }],
-          },
-          parameters: {
-            format: 'wav',
-            sample_rate: sampleRate || 16000,
-          },
-        }),
+        body,
         signal: ctrl.signal,
       });
 
@@ -55,13 +59,26 @@ export class AliyunASRProvider implements IRecognitionProvider {
 
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
+        console.error('[Aliyun FunASR] API error response:', errText.slice(0, 500));
         throw new Error(`DashScope ASR ${res.status}: ${errText.slice(0, 200)}`);
       }
 
       const json: any = await res.json();
-      const text = json?.output?.choices?.[0]?.message?.content?.[0]?.text?.trim() || '';
+      console.log('[Aliyun FunASR] Full response:', JSON.stringify(json).slice(0, 500));
 
-      console.log('[Aliyun FunASR] Result:', text.slice(0, 60));
+      let text = '';
+      // Try multiple response formats
+      if (json?.output?.choices?.[0]?.message?.content?.[0]?.text) {
+        text = json.output.choices[0].message.content[0].text.trim();
+      } else if (json?.output?.text) {
+        text = json.output.text.trim();
+      } else if (json?.text) {
+        text = json.text.trim();
+      } else if (json?.result) {
+        text = json.result.trim();
+      }
+
+      console.log('[Aliyun FunASR] Result text:', text.slice(0, 120));
 
       return {
         text,
