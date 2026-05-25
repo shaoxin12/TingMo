@@ -200,7 +200,7 @@ export const SettingsWindow: React.FC = () => {
                         value={asrCloudProvider}
                         options={ASR_CLOUD_PROVIDERS.map((p) => ({
                           value: p.key, label: p.name,
-                          icon: <span className="nb-provider-icon" style={{ background: p.color }}>{p.initial}</span>,
+                          icon: <img className="nb-provider-icon" src={`./providers/${p.key}.svg`} alt="" />,
                         }))}
                         onChange={(v) => { setAsrCloudProvider(v); setAsrTestResult('idle'); }}
                       />
@@ -249,7 +249,7 @@ export const SettingsWindow: React.FC = () => {
                         value={llmProvider}
                         options={LLM_PROVIDERS.map((p) => ({
                           value: p.key, label: p.name,
-                          icon: <span className="nb-provider-icon" style={{ background: p.color }}>{p.initial}</span>,
+                          icon: <img className="nb-provider-icon" src={`./providers/${p.key}.svg`} alt="" />,
                         }))}
                         onChange={(v) => { setLlmProvider(v); setLlmTestResult('idle'); }}
                       />

@@ -1261,18 +1261,10 @@ html, body, #root {
 
 /* ── Provider icon ─────────────────────────────────────────── */
 .nb-provider-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 16px;
   height: 16px;
-  border-radius: 3px;
-  color: #fff;
-  font-size: 7px;
-  font-weight: 700;
-  font-family: system-ui, sans-serif;
-  line-height: 1;
   flex-shrink: 0;
+  vertical-align: middle;
 }
 
 /* ── Test button ───────────────────────────────────────────── */
