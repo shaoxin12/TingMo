@@ -225,7 +225,7 @@ export const SettingsWindow: React.FC = () => {
                     <div className="nb-row">
                       <span className="nb-label">{t('settings.model')}</span>
                       <NbSelect value={asrCloudModel}
-                        options={getASRModels(asrCloudProvider)}
+                        options={getASRModels(asrCloudProvider).map(m => ({ value: m, label: m }))}
                         onChange={(v) => setAsrCloudModel(v)} />
                     </div>
                     <div className="nb-hr" />
@@ -306,7 +306,7 @@ export const SettingsWindow: React.FC = () => {
                     <div className="nb-row">
                       <span className="nb-label">{t('settings.model')}</span>
                       <NbSelect value={llmModel}
-                        options={getLLMModels(llmProvider)}
+                        options={getLLMModels(llmProvider).map(m => ({ value: m, label: m }))}
                         onChange={(v) => setLlmModel(v)} />
                     </div>
                     <div className="nb-hr" />

@@ -157,12 +157,12 @@ export class VolcanoASRProvider implements IRecognitionProvider {
         }
       });
 
-      ws.on('error', (err) => {
+      ws.on('error', (err: Error) => {
         clearTimeout(timeout);
         reject(new Error(`Volcano ASR: ${err.message}`));
       });
 
-      ws.on('close', (code) => {
+      ws.on('close', (code: number) => {
         clearTimeout(timeout);
         console.log('[Volcano ASR] WS closed, code:', code, 'text:', finalText.slice(0, 80));
         resolve({
