@@ -78,6 +78,7 @@ const api = {
     asrCloudProvider?: string; asrCloudModel?: string; asrCloudApiKey?: string;
   }) => ipcRenderer.invoke('settings:save-llm-settings', settings),
   initRefinement: () => ipcRenderer.invoke('settings:init-refinement'),
+  reinitRecognition: () => ipcRenderer.invoke('settings:reinit-recognition') as Promise<boolean>,
   getRefinementStatus: () => ipcRenderer.invoke('settings:refinement-status'),
   getSystemLocale: () => ipcRenderer.invoke('settings:get-system-locale') as Promise<string>,
   setUiLanguage: (lang: string) => ipcRenderer.invoke('settings:set-ui-language', lang),

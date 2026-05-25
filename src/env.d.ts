@@ -32,6 +32,7 @@ interface TingMoAPI {
     asrCloudProvider?: string; asrCloudModel?: string; asrCloudApiKey?: string;
   }) => Promise<void>;
   initRefinement: () => Promise<boolean>;
+  reinitRecognition: () => Promise<boolean>;
   getRefinementStatus: () => Promise<{ ready: boolean; provider: string | null }>;
   getSystemLocale: () => Promise<string>;
   setUiLanguage: (lang: string) => Promise<void>;

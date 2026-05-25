@@ -783,6 +783,13 @@ if (app) {
     return { ready: refinementReady, provider: refinementProvider?.name || null };
   });
 
+  ipcMain.handle('settings:reinit-recognition', async () => {
+    console.log('[Main] Re-initializing recognition from settings change...');
+    await initRecognition();
+    console.log('[Main] Re-init complete. recReady:', recognitionReady);
+    return recognitionReady;
+  });
+
   // ── Model download ─────────────────────────────────────
   ipcMain.handle('model:check', () => {
     const modelPath = join(app.getPath('userData'), 'models', 'funasr', 'model.int8.onnx');

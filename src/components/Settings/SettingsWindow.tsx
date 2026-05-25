@@ -120,6 +120,14 @@ export const SettingsWindow: React.FC = () => {
       asrProvider, asrCloudProvider, asrCloudModel]);
 
   useEffect(() => {
+    window.tingmo?.saveLlmSettings({
+      refineEnabled, llmProvider, llmModel, llmBaseUrl,
+      asrProvider, asrCloudProvider, asrCloudModel,
+    });
+    window.tingmo?.reinitRecognition();
+  }, [asrProvider, asrCloudProvider, asrCloudModel]);
+
+  useEffect(() => {
     window.tingmo?.setUiLanguage(uiLanguage);
   }, [uiLanguage]);
 
