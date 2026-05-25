@@ -4,7 +4,7 @@ import type { IRecognitionProvider, RecognitionResult } from './speech-recogniti
 const ENDPOINT = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
 
 export class AliyunASRProvider implements IRecognitionProvider {
-  readonly name = 'Aliyun FunASR';
+  get name() { return `Aliyun (${this.model})`; }
   readonly type = 'api' as const;
   readonly vadEnabled = false;
   isReady = false;

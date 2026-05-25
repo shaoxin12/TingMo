@@ -38,7 +38,7 @@ function buildFrame(msgType: number, flags: number, ser: number, cmp: number, pa
 }
 
 export class VolcanoASRProvider implements IRecognitionProvider {
-  readonly name = 'Volcano ASR';
+  get name() { return `Volcano (${this.model})`; }
   readonly type = 'api' as const;
   readonly vadEnabled = false;
   isReady = false;
