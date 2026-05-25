@@ -141,8 +141,7 @@ export const ASR_CLOUD_PROVIDERS: ASRCloudProviderPreset[] = [
     defaultModel: 'fun-asr-realtime',
     models: [
       { value: 'fun-asr-realtime', label: 'FunASR 实时' },
-      { value: 'qwen3-asr-flash', label: 'Qwen3 ASR Flash' },
-      { value: 'paraformer-v1', label: 'Paraformer v1' },
+      { value: 'qwen3-asr-flash-realtime', label: 'Qwen3 ASR Flash' },
     ],
     authType: 'bearer', color: '#FF6A00', initial: 'AL',
   },
