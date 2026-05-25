@@ -78,7 +78,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
         const reqJson = JSON.stringify({
           user: { uid: 'tingmo' },
           audio: {
-            format: 'wav',
+            format: 'pcm',
             rate: sampleRate || 16000,
             bits: 16,
             channel: 1,
