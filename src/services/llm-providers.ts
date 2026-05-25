@@ -45,10 +45,9 @@ export const LLM_PROVIDERS: LLMProviderPreset[] = [
   },
   {
     key: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-chat',
+    defaultModel: 'deepseek-v4-flash',
     models: [
-      { value: 'deepseek-chat', label: 'DeepSeek V3' },
-      { value: 'deepseek-reasoner', label: 'DeepSeek R1' },
+      { value: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
     ],
     authType: 'bearer', color: '#4D6BFE', initial: 'DS',
   },
