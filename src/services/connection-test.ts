@@ -18,82 +18,86 @@ export async function testAsrConnection(
   const silence = Buffer.alloc(dataSize, 0);
   const wav = Buffer.concat([header, silence]);
 
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
-
-    let res: Response;
-    if (provider === 'openai') {
+  // ── OpenAI Whisper ─────────────────────────────────
+  if (provider === 'openai') {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10000);
       const formData = new FormData();
       formData.append('file', new Blob([wav], { type: 'audio/wav' }), 'test.wav');
       formData.append('model', 'whisper-1');
-      res = await fetch(`${endpoint.replace(/\/$/, '')}/audio/transcriptions`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}` },
-        body: formData,
-        signal: ctrl.signal,
+      const res = await fetch(`${endpoint.replace(/\/$/, '')}/audio/transcriptions`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${apiKey}` }, body: formData, signal: ctrl.signal,
       });
-    } else {
-      const headers: Record<string, string> = { 'Content-Type': 'audio/wav' };
-      if (provider === 'volcano') {
-        headers['X-Api-Key'] = apiKey;
-        headers['X-Api-Resource-Id'] = 'volc.seedasr.auc';
-        headers['X-Api-Request-Id'] = crypto.randomUUID();
-      } else if (provider === 'aliyun') {
-        // DashScope FunASR: verify the API key via a minimal request
-        clearTimeout(timer);
-        try {
-          const testCtrl = new AbortController();
-          const testTimer = setTimeout(() => testCtrl.abort(), 8000);
-          const testRes = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`,
-              'X-DashScope-SSE': 'disable',
-            },
-            body: JSON.stringify({
-              model: 'fun-asr-realtime',
-              input: { messages: [{ role: 'user', content: [{ text: 'test' }] }] },
-              parameters: {},
-            }),
-            signal: testCtrl.signal,
-          });
-          clearTimeout(testTimer);
-          if (testRes.status === 401 || testRes.status === 403) {
-            return { ok: false, error: `密钥无效 (HTTP ${testRes.status})`, status: testRes.status };
-          }
-          // 400 = bad request params but key is valid; 200 = success
-          return { ok: true };
-        } catch (err2: any) {
-          if (err2.name === 'AbortError') return { ok: false, error: '连接超时，请检查网络' };
-          return { ok: false, error: `网络错误: ${err2.message?.slice(0, 100)}` };
-        }
-      }
-      res = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: wav,
-        signal: ctrl.signal,
-      });
+      clearTimeout(timer);
+      if (res.status === 401 || res.status === 403) return { ok: false, error: `密钥无效 (HTTP ${res.status})` };
+      return { ok: res.ok };
+    } catch (err: any) {
+      if (err.name === 'AbortError') return { ok: false, error: '连接超时' };
+      return { ok: false, error: err.message?.slice(0, 100) };
     }
-
-    clearTimeout(timer);
-
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, error: `密钥无效 (HTTP ${res.status})`, status: res.status };
-    }
-    if (res.ok) {
-      return { ok: true };
-    }
-    const errText = await res.text().catch(() => '');
-    return { ok: false, error: `请求失败 (HTTP ${res.status}): ${errText.slice(0, 100)}`, status: res.status };
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      return { ok: false, error: '连接超时，请检查网络或端点地址' };
-    }
-    return { ok: false, error: `网络错误: ${err.message?.slice(0, 100)}` };
   }
+
+  // ── Volcano Engine (豆包语音) ──────────────────────
+  if (provider === 'volcano') {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10000);
+      const res = await fetch(`${endpoint}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': apiKey,
+          'X-Api-Resource-Id': 'volc.seedasr.auc',
+          'X-Api-Request-Id': crypto.randomUUID(),
+        },
+        body: JSON.stringify({
+          audio_format: 'wav',
+          audio_data: wav.toString('base64'),
+          model_name: 'bigmodel',
+          language: 'auto',
+        }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (res.status === 401 || res.status === 403) return { ok: false, error: `密钥无效 (HTTP ${res.status})` };
+      return { ok: res.ok };
+    } catch (err: any) {
+      if (err.name === 'AbortError') return { ok: false, error: '连接超时' };
+      return { ok: false, error: err.message?.slice(0, 100) };
+    }
+  }
+
+  // ── Aliyun DashScope ──────────────────────────────
+  if (provider === 'aliyun') {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'X-DashScope-SSE': 'disable',
+        },
+        body: JSON.stringify({
+          model: 'fun-asr-realtime',
+          input: { messages: [{ role: 'user', content: [{ text: 'test' }] }] },
+          parameters: {},
+        }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (res.status === 401 || res.status === 403) return { ok: false, error: `密钥无效 (HTTP ${res.status})` };
+      // 400 = bad params but key valid, 200 = success — both mean connected
+      return { ok: true };
+    } catch (err: any) {
+      if (err.name === 'AbortError') return { ok: false, error: '连接超时' };
+      return { ok: false, error: err.message?.slice(0, 100) };
+    }
+  }
+
+  return { ok: false, error: '未知的 ASR 服务商' };
 }
 
 export async function testLlmConnection(
