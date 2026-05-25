@@ -77,10 +77,12 @@ export class VolcanoASRProvider implements IRecognitionProvider {
 
       ws.on('message', (raw: Buffer) => {
         try {
+          console.log('[Volcano ASR] Raw WS msg, size:', raw.length, 'first bytes:', raw.subarray(0, 16).toString('hex'));
           const frames = parseFrames(raw);
           for (const frame of frames) {
             const payload = frame.payload;
-            console.log('[Volcano ASR] Frame type:', frame.type.toString(16), 'size:', payload.length);
+            const hex = payload.subarray(0, 32).toString('hex');
+            console.log('[Volcano ASR] Frame type:', frame.type.toString(16), 'size:', payload.length, 'hex:', hex);
 
             if (frame.type === 0x90 || frame.type === 0x91 || frame.type === 0x92) {
               // Server response — try JSON
