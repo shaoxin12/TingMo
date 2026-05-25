@@ -595,6 +595,49 @@ setHotkeyCallback(() => handleHotkeyPress());
 setHotkeyReleaseCallback(() => handleHotkeyRelease());
 setEscCallback(() => handleEscPress());
 
+// ── IPC handlers that don't need whenReady ───────────
+
+if (app) {
+  ipcMain.handle('asr:test-connection', async (_event, provider: string, apiKey: string, endpoint: string) => {
+    const { testAsrConnection } = require('../src/services/connection-test');
+    return testAsrConnection(provider, apiKey, endpoint);
+  });
+
+  ipcMain.handle('llm:test-connection', async (_event, provider: string, apiKey: string, model: string, baseUrl: string) => {
+    const { testLlmConnection } = require('../src/services/connection-test');
+    return testLlmConnection(provider, apiKey, model, baseUrl);
+  });
+
+  ipcMain.handle('settings:set-asr-cloud-api-key', async (_event, key: string) => {
+    try {
+      const fs = require('fs');
+      const { safeStorage } = require('electron');
+      const dir = join(app.getPath('userData'), 'data');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const encrypted = safeStorage.encryptString(key);
+      fs.writeFileSync(join(dir, 'asr-apikey.enc'), encrypted);
+      console.log('[Main] ASR cloud API key saved');
+    } catch (err: any) {
+      console.error('[Main] Failed to save ASR cloud API key:', err.message);
+    }
+  });
+
+  ipcMain.handle('settings:get-asr-cloud-api-key', async () => {
+    try {
+      const fs = require('fs');
+      const { safeStorage } = require('electron');
+      const keyPath = join(app.getPath('userData'), 'data', 'asr-apikey.enc');
+      if (fs.existsSync(keyPath)) {
+        const encrypted = fs.readFileSync(keyPath);
+        return safeStorage.decryptString(encrypted);
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  });
+}
+
 // App Lifecycle
 if (app) {
   app.whenReady().then(async () => {
@@ -736,50 +779,6 @@ if (app) {
 
   ipcMain.handle('settings:refinement-status', () => {
     return { ready: refinementReady, provider: refinementProvider?.name || null };
-  });
-
-  // ── Provider connection testing ─────────────────────────
-
-  ipcMain.handle('asr:test-connection', async (_event, provider: string, apiKey: string, endpoint: string) => {
-    const { testAsrConnection } = require('../src/services/connection-test');
-    return testAsrConnection(provider, apiKey, endpoint);
-  });
-
-  ipcMain.handle('llm:test-connection', async (_event, provider: string, apiKey: string, model: string, baseUrl: string) => {
-    const { testLlmConnection } = require('../src/services/connection-test');
-    return testLlmConnection(provider, apiKey, model, baseUrl);
-  });
-
-  // ── ASR cloud API key (separate from LLM key) ────────────
-
-  ipcMain.handle('settings:set-asr-cloud-api-key', async (_event, key: string) => {
-    try {
-      const fs = require('fs');
-      const { safeStorage } = require('electron');
-      const dir = join(app.getPath('userData'), 'data');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const encrypted = safeStorage.encryptString(key);
-      fs.writeFileSync(join(dir, 'asr-apikey.enc'), encrypted);
-      return true;
-    } catch (err: any) {
-      console.error('[Main] Failed to save ASR cloud API key:', err.message);
-      return false;
-    }
-  });
-
-  ipcMain.handle('settings:get-asr-cloud-api-key', async () => {
-    try {
-      const fs = require('fs');
-      const { safeStorage } = require('electron');
-      const keyPath = join(app.getPath('userData'), 'data', 'asr-apikey.enc');
-      if (fs.existsSync(keyPath)) {
-        const encrypted = fs.readFileSync(keyPath);
-        return safeStorage.decryptString(encrypted);
-      }
-      return '';
-    } catch {
-      return '';
-    }
   });
 
   // ── Model download ─────────────────────────────────────
