@@ -119,36 +119,29 @@ async function initRecognition(): Promise<void> {
   try {
     const fs = require('fs');
 
-    // Read ASR provider preference from settings
+    // Read ASR settings from settings.json
     let provider: 'local' | 'cloud' = 'local';
+    let asrCloudProviderKey = 'openai';
+    let asrCloudModel = 'whisper-1';
     try {
-      const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
-      if (fs.existsSync(settingsPath)) {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        provider = settings.asrProvider || 'local';
+      const filepath = getDataPath('settings.json');
+      if (fs.existsSync(filepath)) {
+        const appSettings = readJSON<any>(filepath, {});
+        provider = appSettings.asrProvider || 'local';
+        asrCloudProviderKey = appSettings.asrCloudProvider || 'openai';
+        asrCloudModel = appSettings.asrCloudModel || 'whisper-1';
       }
     } catch { /* use default */ }
 
     if (provider === 'cloud') {
-      // Read ASR cloud provider preference
-      let asrCloudProviderKey = 'openai';
-      let asrCloudModel = 'whisper-1';
-      try {
-        const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
-        if (fs.existsSync(settingsPath)) {
-          const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-          asrCloudProviderKey = settings.asrCloudProvider || 'openai';
-          asrCloudModel = settings.asrCloudModel || 'whisper-1';
-        }
-      } catch { /* use default */ }
 
-      // Read ASR cloud API key from llm-settings.json
+      // Read ASR cloud API key from settings.json
       let asrApiKey = '';
       try {
-        const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
-        if (fs.existsSync(settingsPath)) {
-          const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-          asrApiKey = settings.asrCloudApiKey || '';
+        const filepath = getDataPath('settings.json');
+        if (fs.existsSync(filepath)) {
+          const appSettings = readJSON<any>(filepath, {});
+          asrApiKey = appSettings.asrCloudApiKey || '';
         }
       } catch { /* ignore */ }
 
@@ -214,15 +207,16 @@ let refinementReady = false;
 async function initRefinement(): Promise<void> {
   try {
     const fs = require('fs');
-    const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
+    // Read LLM config + key from settings.json
+    const filepath = getDataPath('settings.json');
     let apiKey = '';
     let llmProviderKey = 'openai';
     let model = 'gpt-4o-mini';
     let baseUrl = 'https://api.openai.com/v1';
-    if (fs.existsSync(settingsPath)) {
+    if (fs.existsSync(filepath)) {
       try {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        apiKey = settings._llmApiKey || '';
+        const settings = readJSON<any>(filepath, {});
+        apiKey = settings.llmApiKey || '';
         llmProviderKey = settings.llmProvider || 'openai';
         model = settings.llmModel || model;
         baseUrl = settings.llmBaseUrl || baseUrl;

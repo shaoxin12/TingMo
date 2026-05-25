@@ -98,8 +98,10 @@ function schedulePersist(state: SettingsState): void {
         selectedMicDeviceId: state.selectedMicDeviceId,
         uiLanguage: state.uiLanguage,
         llmProvider: state.llmProvider,
+        llmApiKey: state.llmApiKey,
         asrCloudProvider: state.asrCloudProvider,
         asrCloudModel: state.asrCloudModel,
+        asrCloudApiKey: state.asrCloudApiKey,
       });
     }
   }, 300);
@@ -155,16 +157,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       llmBaseUrl: preset?.baseUrl || 'https://api.openai.com/v1',
     });
   },
-  setLlmApiKey: (key) => set({ llmApiKey: key }),
+  setLlmApiKey: (key) => { set({ llmApiKey: key }); schedulePersist(get()); },
   setLlmModel: (model) => set({ llmModel: model }),
   setLlmBaseUrl: (url) => set({ llmBaseUrl: url }),
 
   setAsrCloudProvider: (p) => {
     const asrPreset = getASRCloudProvider(p);
     set({ asrCloudProvider: p, asrCloudModel: asrPreset?.defaultModel || 'whisper-1' });
+    schedulePersist(get());
   },
   setAsrCloudModel: (model) => set({ asrCloudModel: model }),
-  setAsrCloudApiKey: (key) => set({ asrCloudApiKey: key }),
+  setAsrCloudApiKey: (key) => { set({ asrCloudApiKey: key }); schedulePersist(get()); },
   setPolishMode: (mode) => { set({ polishMode: mode }); schedulePersist(get()); },
   setCustomPrompt: (prompt) => { set({ customPrompt: prompt }); schedulePersist(get()); },
   setSelectedMicDeviceId: (id) => { set({ selectedMicDeviceId: id }); schedulePersist(get()); },
@@ -175,37 +178,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const w = window as any;
       if (!w.tingmo?.loadAppSettings) return;
       const saved = await w.tingmo.loadAppSettings();
-
-      // Restore encrypted API keys from main process
-      let llmApiKey = '';
-      let asrCloudApiKey = '';
-      try {
-        llmApiKey = await w.tingmo?.getApiKey() || '';
-        asrCloudApiKey = await w.tingmo?.getAsrCloudApiKey() || '';
-      } catch { /* ignore */ }
-
-      set({
-        asrProvider: (saved && saved.asrProvider) || 'local',
-        recordMode: (saved && saved.recordMode) || 'toggle',
-        language: (saved && saved.language) || 'zh',
-        hotkey: (saved && saved.hotkey) || DEFAULT_HOTKEY,
-        translateHotkey: (saved && saved.translateHotkey) || DEFAULT_TRANSLATE_HOTKEY,
-        launchAtStartup: saved ? (saved.launchAtStartup ?? false) : false,
-        muteOnRecord: saved ? (saved.muteOnRecord ?? true) : true,
-        useDictionary: saved ? (saved.useDictionary ?? true) : true,
-        translateTarget: (saved && saved.translateTarget) || 'en',
-        dictionary: (saved && saved.dictionary) || [],
-        polishMode: (saved && saved.polishMode) || 'structured',
-        customPrompt: (saved && saved.customPrompt) || '',
-        selectedMicDeviceId: (saved && saved.selectedMicDeviceId) || '',
-        uiLanguage: (saved && saved.uiLanguage) || 'zh-CN',
-        llmProvider: (saved && saved.llmProvider) || 'openai',
-        llmApiKey,
-        asrCloudProvider: (saved && saved.asrCloudProvider) || 'openai',
-        asrCloudModel: (saved && saved.asrCloudModel) || 'whisper-1',
-        asrCloudApiKey,
-      });
-      console.log('[Settings] Hydrated. LLM key:', !!llmApiKey, 'ASR key:', !!asrCloudApiKey);
+      if (saved && Object.keys(saved).length > 0) {
+        set({
+          asrProvider: saved.asrProvider || 'local',
+          recordMode: saved.recordMode || 'toggle',
+          language: saved.language || 'zh',
+          hotkey: saved.hotkey || DEFAULT_HOTKEY,
+          translateHotkey: saved.translateHotkey || DEFAULT_TRANSLATE_HOTKEY,
+          launchAtStartup: saved.launchAtStartup ?? false,
+          muteOnRecord: saved.muteOnRecord ?? true,
+          useDictionary: saved.useDictionary ?? true,
+          translateTarget: saved.translateTarget || 'en',
+          dictionary: saved.dictionary || [],
+          polishMode: saved.polishMode || 'structured',
+          customPrompt: saved.customPrompt || '',
+          selectedMicDeviceId: saved.selectedMicDeviceId || '',
+          uiLanguage: saved.uiLanguage || 'zh-CN',
+          llmProvider: saved.llmProvider || 'openai',
+          llmApiKey: saved.llmApiKey || '',
+          asrCloudProvider: saved.asrCloudProvider || 'openai',
+          asrCloudModel: saved.asrCloudModel || 'whisper-1',
+          asrCloudApiKey: saved.asrCloudApiKey || '',
+        });
+      }
     } catch (err) {
       console.error('[Settings] Failed to hydrate:', err);
     } finally {
