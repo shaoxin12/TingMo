@@ -158,7 +158,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
   },
   setLlmApiKey: (key) => { set({ llmApiKey: key }); schedulePersist(get()); },
-  setLlmModel: (model) => set({ llmModel: model }),
+  setLlmModel: (model) => { set({ llmModel: model }); schedulePersist(get()); },
   setLlmBaseUrl: (url) => set({ llmBaseUrl: url }),
 
   setAsrCloudProvider: (p) => {
@@ -166,7 +166,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ asrCloudProvider: p, asrCloudModel: asrPreset?.defaultModel || 'whisper-1' });
     schedulePersist(get());
   },
-  setAsrCloudModel: (model) => set({ asrCloudModel: model }),
+  setAsrCloudModel: (model) => { set({ asrCloudModel: model }); schedulePersist(get()); },
   setAsrCloudApiKey: (key) => { set({ asrCloudApiKey: key }); schedulePersist(get()); },
   setPolishMode: (mode) => { set({ polishMode: mode }); schedulePersist(get()); },
   setCustomPrompt: (prompt) => { set({ customPrompt: prompt }); schedulePersist(get()); },
