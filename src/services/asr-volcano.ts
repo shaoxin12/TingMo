@@ -130,12 +130,11 @@ export class VolcanoASRProvider implements IRecognitionProvider {
           if (offset + payloadSize > raw.length) return;
 
           let payload = raw.subarray(offset, offset + payloadSize);
-          const compression = (raw[2] >> 4) & 0xF;
+          const serMethod = (raw[2] >> 4) & 0xF;   // upper 4 bits of byte2 = serialization
+          const compression = raw[2] & 0xF;         // lower 4 bits of byte2 = compression
           if (compression === CMP_GZIP) {
             try { payload = require('zlib').gunzipSync(payload); } catch { /* keep raw */ }
           }
-
-          const serMethod = raw[2] & 0xF;
           if (serMethod === SER_JSON) {
             try {
               const json = JSON.parse(payload.toString('utf-8'));
