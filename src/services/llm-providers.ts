@@ -140,8 +140,8 @@ export const ASR_CLOUD_PROVIDERS: ASRCloudProviderPreset[] = [
     key: 'aliyun', name: '阿里云百炼', endpoint: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
     defaultModel: 'fun-asr-realtime',
     models: [
-      { value: 'fun-asr-realtime', label: 'FunASR 实时' },
-      { value: 'qwen3-asr-flash-realtime', label: 'Qwen3 ASR Flash' },
+      { value: 'fun-asr-realtime', label: 'Fun-ASR' },
+      { value: 'qwen3-asr-flash-realtime', label: 'Qwen3-ASR-Flash' },
     ],
     authType: 'bearer', color: '#FF6A00', initial: 'AL',
   },
