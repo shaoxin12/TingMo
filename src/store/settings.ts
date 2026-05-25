@@ -184,29 +184,28 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         asrCloudApiKey = await w.tingmo?.getAsrCloudApiKey() || '';
       } catch { /* ignore */ }
 
-      if (saved && Object.keys(saved).length > 0) {
-        set({
-          asrProvider: saved.asrProvider || 'local',
-          recordMode: saved.recordMode || 'toggle',
-          language: saved.language || 'zh',
-          hotkey: saved.hotkey || DEFAULT_HOTKEY,
-          translateHotkey: saved.translateHotkey || DEFAULT_TRANSLATE_HOTKEY,
-          launchAtStartup: saved.launchAtStartup ?? false,
-          muteOnRecord: saved.muteOnRecord ?? true,
-          useDictionary: saved.useDictionary ?? true,
-          translateTarget: saved.translateTarget || 'en',
-          dictionary: saved.dictionary || [],
-          polishMode: saved.polishMode || 'structured',
-          customPrompt: saved.customPrompt || '',
-          selectedMicDeviceId: saved.selectedMicDeviceId || '',
-          uiLanguage: saved.uiLanguage || 'zh-CN',
-          llmProvider: saved.llmProvider || 'openai',
-          llmApiKey,
-          asrCloudProvider: saved.asrCloudProvider || 'openai',
-          asrCloudModel: saved.asrCloudModel || 'whisper-1',
-          asrCloudApiKey,
-        });
-      }
+      set({
+        asrProvider: (saved && saved.asrProvider) || 'local',
+        recordMode: (saved && saved.recordMode) || 'toggle',
+        language: (saved && saved.language) || 'zh',
+        hotkey: (saved && saved.hotkey) || DEFAULT_HOTKEY,
+        translateHotkey: (saved && saved.translateHotkey) || DEFAULT_TRANSLATE_HOTKEY,
+        launchAtStartup: saved ? (saved.launchAtStartup ?? false) : false,
+        muteOnRecord: saved ? (saved.muteOnRecord ?? true) : true,
+        useDictionary: saved ? (saved.useDictionary ?? true) : true,
+        translateTarget: (saved && saved.translateTarget) || 'en',
+        dictionary: (saved && saved.dictionary) || [],
+        polishMode: (saved && saved.polishMode) || 'structured',
+        customPrompt: (saved && saved.customPrompt) || '',
+        selectedMicDeviceId: (saved && saved.selectedMicDeviceId) || '',
+        uiLanguage: (saved && saved.uiLanguage) || 'zh-CN',
+        llmProvider: (saved && saved.llmProvider) || 'openai',
+        llmApiKey,
+        asrCloudProvider: (saved && saved.asrCloudProvider) || 'openai',
+        asrCloudModel: (saved && saved.asrCloudModel) || 'whisper-1',
+        asrCloudApiKey,
+      });
+      console.log('[Settings] Hydrated. LLM key:', !!llmApiKey, 'ASR key:', !!asrCloudApiKey);
     } catch (err) {
       console.error('[Settings] Failed to hydrate:', err);
     } finally {

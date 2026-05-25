@@ -613,12 +613,21 @@ if (app) {
   ipcMain.handle('settings:set-asr-cloud-api-key', async (_event, key: string) => {
     try {
       const fs = require('fs');
-      const { safeStorage } = require('electron');
       const dir = join(app.getPath('userData'), 'data');
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const encrypted = safeStorage.encryptString(key);
-      fs.writeFileSync(join(dir, 'asr-apikey.enc'), encrypted);
-      console.log('[Main] ASR cloud API key saved');
+      const filePath = join(dir, 'asr-apikey.enc');
+      // Try DPAPI encryption; fall back to base64 if unavailable
+      try {
+        const { safeStorage } = require('electron');
+        if (safeStorage.isEncryptionAvailable()) {
+          fs.writeFileSync(filePath, safeStorage.encryptString(key));
+        } else {
+          fs.writeFileSync(filePath, Buffer.from(key, 'utf-8').toString('base64'), 'utf-8');
+        }
+      } catch {
+        fs.writeFileSync(filePath, Buffer.from(key, 'utf-8').toString('base64'), 'utf-8');
+      }
+      console.log('[Main] ASR cloud API key saved, length:', key.length);
     } catch (err: any) {
       console.error('[Main] Failed to save ASR cloud API key:', err.message);
     }
@@ -627,13 +636,17 @@ if (app) {
   ipcMain.handle('settings:get-asr-cloud-api-key', async () => {
     try {
       const fs = require('fs');
-      const { safeStorage } = require('electron');
       const keyPath = join(app.getPath('userData'), 'data', 'asr-apikey.enc');
-      if (fs.existsSync(keyPath)) {
-        const encrypted = fs.readFileSync(keyPath);
-        return safeStorage.decryptString(encrypted);
-      }
-      return '';
+      if (!fs.existsSync(keyPath)) return '';
+      const data = fs.readFileSync(keyPath);
+      // Try DPAPI decrypt; fall back to base64
+      try {
+        const { safeStorage } = require('electron');
+        if (safeStorage.isEncryptionAvailable()) {
+          return safeStorage.decryptString(data);
+        }
+      } catch { /* fall through */ }
+      return Buffer.from(data.toString('utf-8'), 'base64').toString('utf-8');
     } catch {
       return '';
     }
