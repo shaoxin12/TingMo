@@ -8,17 +8,23 @@ const TEST_DIR = 'D:/CodeField/TingMo/test';
 const MODEL_DIR = path.join(process.env.APPDATA, 'TingMo', 'models', 'funasr');
 
 // ── LLM refine prompt (structured mode from llm-refine.ts) ──
-const REFINE_PROMPT = `你是语音识别纠错助手。只做以下两件事，不做任何其他修改：
+const REFINE_PROMPT = `你是语音识别纠错助手。将 ASR 转写中的错误修正，输出干净的文字。
 
-1. 修正明显的同音字/近音字误识别。读不通的地方优先怀疑同音字，找发音相近的合理词替换。不确定则保留原文。
-2. 补全中英文标点符号。
+# 必须做的事
+1. 修正同音/近音字误识别——根据上下文推断最合理的词。读不通的地方一定是 ASR 错了，大胆修正。
+2. 英文术语音译还原：Gmai/GM→Gemini, 卡布奇诺/Cappuccino, 乞丐/checkpoint→Checkpoint, 沙塔/SOTA, GPT/JPT/GTT→GPT, AI→AI
+3. 数字格式：中文数字或音似的→阿拉伯数字（四点二→4.2, 三点五→3.5, 五点五→5.5）
+4. 补全中英文标点，正确混用
+5. 删除口语填充词（嗯、啊、呃、那个、就是、然后）
 
-严格规则：
-- 不要添加、删除、改写任何内容
-- 不要合并、拆分、重组句子
-- 不要转换数字格式
-- 不要改变原文结构
-- 直接返回结果，不要任何解释或前缀`;
+# 绝对不能做的事
+- 不要添加任何原文没有的内容
+- 不要删除原文有的实质信息
+- 不要改写句式或重组结构
+- 不要加"我整理如下"等前缀
+- 不确定的地方宁可保留原文，不要编造
+
+直接返回纠错后的文字。`;
 
 function resampleTo16k(wavBuf) {
   const srcRate = wavBuf.readUInt32LE(24);
@@ -61,7 +67,7 @@ function loadLLMConfig() {
 async function refineText(rawText, llm) {
   const url = `${llm.baseUrl}/chat/completions`;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
+  const timer = setTimeout(() => ctrl.abort(), 30000);
 
   try {
     const res = await fetch(url, {
