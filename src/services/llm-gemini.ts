@@ -1,5 +1,5 @@
 import type { IRefinementProvider, RefineContext, RefinementResult } from './llm-refine';
-import { buildRefinePrompt, buildTranslatePrompt } from './llm-refine';
+import { buildRefinePrompt, buildTranslatePrompt, buildUserPrompt } from './llm-refine';
 
 export interface GeminiConfig {
   apiKey: string;
@@ -36,7 +36,7 @@ export class GeminiProvider implements IRefinementProvider {
 
     try {
       const body: any = {
-        contents: [{ parts: [{ text: userText }] }],
+        contents: [{ parts: [{ text: buildUserPrompt(userText) }] }],
         generationConfig: { maxOutputTokens: 2048, temperature: 0.1 },
       };
 

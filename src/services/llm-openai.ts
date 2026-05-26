@@ -1,5 +1,5 @@
 import type { IRefinementProvider, RefineContext, RefinementResult, DictEntry } from './llm-refine';
-import { buildRefinePrompt, buildTranslatePrompt } from './llm-refine';
+import { buildRefinePrompt, buildTranslatePrompt, buildUserPrompt } from './llm-refine';
 
 export interface OpenAIConfig {
   apiKey: string;
@@ -44,7 +44,7 @@ export class OpenAIProvider implements IRefinementProvider {
           model: this.config.model,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userText },
+            { role: 'user', content: buildUserPrompt(userText) },
           ],
           max_tokens: 2048,
           temperature: 0.1,

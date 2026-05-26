@@ -8,7 +8,7 @@ const TEST_DIR = 'D:/CodeField/TingMo/test';
 const MODEL_DIR = path.join(process.env.APPDATA, 'TingMo', 'models', 'funasr');
 
 // Import real prompt from app source (keep test & production in sync)
-import { PROMPT_STRUCTURED } from '../src/services/llm-refine.ts';
+import { PROMPT_STRUCTURED, buildUserPrompt } from '../src/services/llm-refine.ts';
 const REFINE_PROMPT = PROMPT_STRUCTURED;
 
 function resampleTo16k(wavBuf) {
@@ -62,7 +62,7 @@ async function refineText(rawText, llm) {
         model: llm.model,
         messages: [
           { role: 'system', content: REFINE_PROMPT },
-          { role: 'user', content: rawText },
+          { role: 'user', content: buildUserPrompt(rawText) },
         ],
         max_tokens: 2048,
         temperature: 0.1,
