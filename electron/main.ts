@@ -3,7 +3,7 @@ import { autoUpdater } from 'electron-updater';
 import { join } from 'path';
 import { createTray, updateTrayState, updateTrayLanguage, setOnAsrProviderChange } from './tray';
 import { startHotkey, stopHotkey, setHotkeyCallback, setHotkeyReleaseCallback, setEscCallback, waitForHotkeyRelease } from './hotkey';
-import { injectText } from './text-inserter';
+import { injectText, backspaceChars } from './text-inserter';
 import { ensureModel } from '../src/services/model-downloader';
 import { duckSystemAudio, unduckSystemAudio } from './audio-ducking';
 import { addRecordingStats, addHistoryEntry, loadStats, loadHistory, clearHistory, loadOverview } from './stats-history';
@@ -933,27 +933,50 @@ if (app) {
         }
       } catch { /* use default */ }
 
-      // LLM Refinement — only if enabled AND not translating
+      // LLM Refinement — stream if available, inject raw text first for instant feedback
       let originalText = text;
+      const rawText = text;
+      const doRefine = refineEnabled && refinementReady && refinementProvider && text.trim().length > 0 && !options?.translate;
       console.log('[Main] Refine check: enabled=', refineEnabled, 'ready=', refinementReady, 'provider=', !!refinementProvider, 'textLen=', text.trim().length, 'translate=', !!options?.translate);
-      if (refineEnabled && refinementReady && refinementProvider && text.trim().length > 0 && !options?.translate) {
+
+      let refineDone = false;
+      let injectResult: any = null;
+
+      if (doRefine) {
+        setVoiceState('refining');
+        // Inject raw ASR text immediately — user sees text instantly
+        injectResult = await injectText(rawText);
+        console.log('[Main] Raw injected:', rawText.slice(0, 40));
+
+        // Start LLM streaming in background (pipeline with hotkey release)
         try {
-          setVoiceState('refining');
-          const result = await refinementProvider.refine(text, {
+          const ctx = {
             language,
             dictionary: options?.dictionary ?? [],
             polishMode: (options as any)?.polishMode || 'structured',
             customPrompt: (options as any)?.customPrompt || '',
-          });
-          text = result.refinedText;
+          };
+
+          if (refinementProvider.streamRefine) {
+            let refined = '';
+            for await (const chunk of refinementProvider.streamRefine(rawText, ctx)) {
+              refined += chunk;
+            }
+            text = refined.trim() || rawText;
+          } else {
+            const result = await refinementProvider.refine(rawText, ctx);
+            text = result.refinedText || rawText;
+          }
+          refineDone = true;
           console.log('[Main] Refined:', text.slice(0, 80));
         } catch (err: any) {
-          console.error('[Main] Refine failed, using raw ASR:', err.message);
+          console.error('[Main] Refine failed, keeping raw ASR:', err.message);
           sendToRenderer('voice:refine-failed', { error: err.message });
+          text = rawText;
         }
       }
 
-      // LLM Translation — uses same provider as refinement, different prompt
+      // LLM Translation
       if (options?.translate && text.trim()) {
         const target = options.translateTarget || 'en';
         console.log('[Main] Translating to', target, ':', text.slice(0, 40));
@@ -971,7 +994,6 @@ if (app) {
             text = `[${target.toUpperCase()}] ${text}`;
           }
         } else {
-          console.log('[Main] No LLM provider — prepending language tag');
           text = `[${target.toUpperCase()}] ${text}`;
         }
       }
@@ -979,13 +1001,20 @@ if (app) {
       console.log('[Main] Total transcribe time:', Date.now() - tStart, 'ms, injecting:', text.slice(0, 40));
       await releasePromise;
 
-      const injectResult = await injectText(text);
+      // If refined, replace raw text with refined version
+      if (refineDone && text !== rawText) {
+        await backspaceChars(rawText.length);
+        injectResult = await injectText(text);
+      } else if (!injectResult) {
+        injectResult = await injectText(text);
+      }
+
       const durationMs = Date.now() - recordingStartedAt;
       addRecordingStats(durationMs, text.length);
       addHistoryEntry(text, text.length, originalText, refinementProvider?.name || null);
 
       setVoiceState('success');
-      sendToRenderer('voice:recognition-done', { charCount: injectResult.charCount, durationMs: injectResult.durationMs });
+      sendToRenderer('voice:recognition-done', { charCount: injectResult?.charCount || text.length, durationMs: injectResult?.durationMs || durationMs });
     } catch (err: any) {
       console.error('[Main] Transcription error:', err.message);
       setVoiceState('idle');

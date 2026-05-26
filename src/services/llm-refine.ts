@@ -35,6 +35,9 @@ export interface IRefinementProvider {
   /** Refine raw ASR text into structured, clean output */
   refine(rawText: string, context?: RefineContext): Promise<RefinementResult>;
 
+  /** Stream-refine: yields text chunks as they arrive from LLM */
+  streamRefine?(rawText: string, context?: RefineContext): AsyncGenerator<string, RefinementResult, void>;
+
   /** Translate text to a target language */
   translate(text: string, targetLang: string, context?: RefineContext): Promise<RefinementResult>;
 }

@@ -16,7 +16,84 @@ export class GeminiProvider implements IRefinementProvider {
   async refine(rawText: string, context?: RefineContext): Promise<RefinementResult> {
     const t0 = performance.now();
     const systemPrompt = buildRefinePrompt(context);
-    return this.callAPI(systemPrompt, rawText, t0);
+    try {
+      const gen = this.streamRefine(rawText, context);
+      for (let r = await gen.next(); !r.done; r = await gen.next()) { /* accumulate */ }
+      return { refinedText: '', originalText: rawText, provider: `gemini/${this.config.model}`, durationMs: performance.now() - t0 };
+    } catch {
+      return this.callAPI(systemPrompt, rawText, t0);
+    }
+  }
+
+  async *streamRefine(rawText: string, context?: RefineContext): AsyncGenerator<string, RefinementResult, void> {
+    const t0 = performance.now();
+    const systemPrompt = buildRefinePrompt(context);
+    const baseUrl = (this.config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
+    const model = this.config.model || 'gemini-2.0-flash';
+    const url = `${baseUrl}/models/${model}:streamGenerateContent?key=${this.config.apiKey}&alt=sse`;
+    const timeout = this.config.timeoutMs || 30000;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const body: any = {
+        contents: [{ parts: [{ text: buildUserPrompt(rawText) }] }],
+        generationConfig: { maxOutputTokens: 2048, temperature: 0.1 },
+      };
+      if (systemPrompt) {
+        body.systemInstruction = { parts: [{ text: systemPrompt }] };
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`Gemini API ${res.status}: ${errText.slice(0, 200)}`);
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+          const data = trimmed.slice(5).trim();
+          try {
+            const json = JSON.parse(data);
+            const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              fullText += text;
+              yield text;
+            }
+          } catch { /* skip */ }
+        }
+      }
+
+      const refinedText = fullText.trim() || rawText;
+      return {
+        refinedText,
+        originalText: rawText,
+        provider: `gemini/${model}`,
+        durationMs: performance.now() - t0,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async translate(text: string, targetLang: string, context?: RefineContext): Promise<RefinementResult> {
@@ -29,7 +106,7 @@ export class GeminiProvider implements IRefinementProvider {
     const baseUrl = (this.config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
     const model = this.config.model || 'gemini-2.0-flash';
     const url = `${baseUrl}/models/${model}:generateContent?key=${this.config.apiKey}`;
-    const timeout = this.config.timeoutMs || 8000;
+    const timeout = this.config.timeoutMs || 30000;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
