@@ -115,6 +115,30 @@ function clearAutoDismiss(): void {
 let recognitionProvider: any = null;
 let recognitionReady = false;
 
+// Cached fallback recognizer — avoids model reload on every call
+let fallbackRecognizer: any = null;
+let fallbackRecognizerReady = false;
+
+function getFallbackRecognizer(): any {
+  if (fallbackRecognizerReady && fallbackRecognizer) return fallbackRecognizer;
+  const fs = require('fs');
+  const path = require('path');
+  const sherpa = require('sherpa-onnx');
+  const modelDir = join(app.getPath('userData'), 'models', 'funasr');
+  const modelPath = path.join(modelDir, 'model.int8.onnx');
+  const tokensPath = path.join(modelDir, 'tokens.txt');
+  if (!fs.existsSync(modelPath)) return null;
+  fallbackRecognizer = sherpa.createOfflineRecognizer({
+    modelConfig: {
+      senseVoice: { model: modelPath, language: '', useInverseTextNormalization: 1 },
+      tokens: tokensPath,
+    },
+  });
+  fallbackRecognizerReady = true;
+  console.log('[Main] Fallback recognizer cached');
+  return fallbackRecognizer;
+}
+
 async function initRecognition(): Promise<void> {
   try {
     const fs = require('fs');
@@ -188,6 +212,7 @@ let refinementProvider: any = null;
 let refinementReady = false;
 
 async function initRefinement(): Promise<void> {
+  console.log('[Main] initRefinement() called');
   try {
     const fs = require('fs');
     // Read LLM config + key from settings.json
@@ -276,17 +301,6 @@ function levenshtein(a: string, b: string): number {
     }
   }
   return dp[n];
-}
-
-async function isNetworkAvailable(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 2000);
-    await fetch('https://api.openai.com/v1/models', { method: 'HEAD', signal: controller.signal });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 let modelDownloadPromise: Promise<string> | null = null;
@@ -577,40 +591,27 @@ if (app) {
   });
 
   ipcMain.handle('settings:set-asr-cloud-api-key', async (_event, key: string) => {
-    // Store ASR key in llm-settings.json alongside other ASR config
     try {
-      const fs = require('fs');
-      const dir = join(app.getPath('userData'), 'data');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const settingsPath = join(dir, 'llm-settings.json');
-      let existing: any = {};
-      if (fs.existsSync(settingsPath)) {
-        try { existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch { /* ignore */ }
-      }
+      const filepath = getDataPath('settings.json');
+      const existing = readJSON<any>(filepath, {});
       existing.asrCloudApiKey = key;
-      fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
-      console.log('[Main] ASR key saved to llm-settings.json');
+      writeJSON(filepath, existing);
     } catch (err: any) {
       console.error('[Main] Failed to save ASR key:', err.message);
     }
   });
 
   ipcMain.handle('settings:get-asr-cloud-api-key', async () => {
-    try {
-      const fs = require('fs');
-      const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
-      if (!fs.existsSync(settingsPath)) return '';
-      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-      return settings.asrCloudApiKey || '';
-    } catch {
-      return '';
-    }
+    const settings = readJSON<any>(getDataPath('settings.json'), {});
+    return settings.asrCloudApiKey || '';
   });
 }
 
 // App Lifecycle
 if (app) {
   app.whenReady().then(async () => {
+  console.log('[Main] ====== App ready, initializing ======');
+
   // Migrate data from old "tingmo" dir to "TingMo" (package.json name was lowercased)
   try {
     const fs = require('fs');
@@ -698,51 +699,18 @@ if (app) {
 
   // LLM / Refinement settings
   ipcMain.handle('settings:get-api-key', () => {
-    try {
-      const fs = require('fs');
-      const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
-      if (!fs.existsSync(settingsPath)) return '';
-      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-      return settings.llmApiKey || '';
-    } catch { /* ignore */ }
-    return '';
+    const settings = readJSON<any>(getDataPath('settings.json'), {});
+    return settings.llmApiKey || '';
   });
 
   ipcMain.handle('settings:set-api-key', (_event, key: string) => {
     try {
-      const fs = require('fs');
-      const dir = join(app.getPath('userData'), 'data');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const settingsPath = join(dir, 'llm-settings.json');
-      let existing: any = {};
-      if (fs.existsSync(settingsPath)) {
-        try { existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch { /* ignore */ }
-      }
-      existing._llmApiKey = key;
-      fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
+      const filepath = getDataPath('settings.json');
+      const existing = readJSON<any>(filepath, {});
+      existing.llmApiKey = key;
+      writeJSON(filepath, existing);
     } catch (err: any) {
       console.error('[Main] Failed to save LLM key:', err.message);
-    }
-  });
-
-  ipcMain.handle('settings:save-llm-settings', (_event, settings: {
-    refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
-    llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
-    asrCloudProvider?: string; asrCloudModel?: string; asrCloudApiKey?: string;
-  }) => {
-    try {
-      const fs = require('fs');
-      const dir = join(app.getPath('userData'), 'data');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const settingsPath = join(dir, 'llm-settings.json');
-      let existing: any = {};
-      if (fs.existsSync(settingsPath)) {
-        try { existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch { /* ignore */ }
-      }
-      Object.assign(existing, settings);
-      fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
-    } catch (err: any) {
-      console.error('[Main] Failed to save LLM settings:', err.message);
     }
   });
 
@@ -822,11 +790,32 @@ if (app) {
   });
 
   // Audio transcription from renderer
+  // Streaming ASR: process a small chunk, return raw text only (no filter/refine/inject)
+  ipcMain.handle('voice:asr-chunk', async (_event, wavBuf: ArrayBuffer) => {
+    const buf = Buffer.from(wavBuf);
+    if (recognitionReady && recognitionProvider) {
+      const result = await recognitionProvider.transcribe(buf, 16000, 'auto');
+      return result.text || '';
+    }
+    const rec = getFallbackRecognizer();
+    if (!rec) return '';
+    const numSamples = Math.floor((buf.length - 44) / 2);
+    const samples = new Float32Array(numSamples);
+    for (let i = 0; i < numSamples; i++) samples[i] = buf.readInt16LE(44 + i * 2) / 32768;
+    const stream = rec.createStream();
+    stream.acceptWaveform(16000, samples);
+    rec.decode(stream);
+    const text = rec.getResult(stream).text || '';
+    stream.free();
+    return text;
+  });
+
   ipcMain.handle('voice:transcribe', async (_event, audioBuffer: ArrayBuffer, language?: string, options?: {
     translate?: boolean; translateTarget?: string; dictionary?: Array<{word: string; replace: string}>;
-    polishMode?: string; customPrompt?: string;
+    polishMode?: string; customPrompt?: string; preAsrText?: string;
   }) => {
     try {
+      const tStart = Date.now();
       console.log('[Main] Transcribe: buffer =', audioBuffer.byteLength, 'bytes, lang =', language);
       const buf = Buffer.from(audioBuffer);
       let text: string;
@@ -838,47 +827,80 @@ if (app) {
       setImmediate(() => {
         try {
           const fs = require('fs');
-          const debugDir = join(process.env.APPDATA || '', 'TingMo', 'debug_recordings');
+          const debugDir = join(app.getPath('userData'), 'debug_recordings');
           if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
           fs.writeFileSync(join(debugDir, `tingmo_${Date.now()}.wav`), buf);
         } catch { /* ignore */ }
       });
 
       // ── ASR Inference ────────────────────────────────────
-      if (recognitionReady && recognitionProvider) {
-        console.log('[Main] Using cloud ASR:', recognitionProvider.name);
+      const asrStart = Date.now();
+
+      // If caller already has ASR text from streaming, skip inference
+      if (options?.preAsrText) {
+        text = options.preAsrText;
+        console.log('[Main] Using pre-asr text:', text.length, 'chars');
+      } else {
+      const asrMode = readJSON<any>(getDataPath('settings.json'), {}).asrProvider || 'local';
+      if (asrMode === 'cloud') {
+        if (!recognitionReady || !recognitionProvider) {
+          throw new Error('Cloud ASR not ready — please check API key and connection in Settings');
+        }
+        console.log('[Main] ASR start, provider:', recognitionProvider.name);
         const result = await recognitionProvider.transcribe(buf, 16000, language || 'auto');
         text = result.text || '';
-        console.log('[Main] ASR result:', text.slice(0, 60));
+        console.log('[Main] ASR done in', Date.now() - asrStart, 'ms, text:', text.length, 'chars —', text.slice(0, 60));
       } else {
-        const fs = require('fs');
-        const path = require('path');
-        const sherpa = require('sherpa-onnx');
-        const modelDir = join(app.getPath('userData'), 'models', 'funasr');
-        const modelPath = path.join(modelDir, 'model.int8.onnx');
-        const tokensPath = path.join(modelDir, 'tokens.txt');
-        if (!fs.existsSync(modelPath)) {
-          throw new Error('Model not found: ' + modelPath);
+        if (recognitionReady && recognitionProvider) {
+          console.log('[Main] ASR start (local)');
+          const result = await recognitionProvider.transcribe(buf, 16000, language || 'auto');
+          text = result.text || '';
+          console.log('[Main] ASR done in', Date.now() - asrStart, 'ms, text:', text.length, 'chars —', text.slice(0, 60));
+        } else {
+          console.log('[Main] ASR start (local fallback)');
+          const rec = getFallbackRecognizer();
+          if (!rec) {
+            throw new Error('Model not found — please download SenseVoice model in Settings');
+          }
+          const numSamples = Math.floor((buf.length - 44) / 2);
+          const samples = new Float32Array(numSamples);
+          for (let i = 0; i < numSamples; i++) {
+            samples[i] = buf.readInt16LE(44 + i * 2) / 32768;
+          }
+          const totalSecs = numSamples / 16000;
+          if (totalSecs <= 14) {
+            const stream = rec.createStream();
+            stream.acceptWaveform(16000, samples);
+            rec.decode(stream);
+            text = rec.getResult(stream).text || '';
+            stream.free();
+          } else {
+            // Chunked for long audio
+            const CHUNK = 12 * 16000, OVERLAP = 16000, STEP = CHUNK - OVERLAP;
+            const count = Math.ceil((numSamples - OVERLAP) / STEP);
+            const parts: string[] = [];
+            for (let c = 0; c < count; c++) {
+              const s = c * STEP, e = Math.min(s + CHUNK, numSamples);
+              const st = rec.createStream();
+              st.acceptWaveform(16000, samples.slice(s, e));
+              rec.decode(st);
+              parts.push(rec.getResult(st).text || '');
+              st.free();
+            }
+            let deduped = parts[0];
+            for (let i = 1; i < parts.length; i++) {
+              let cut = 0;
+              for (let len = Math.min(parts[i - 1].length, parts[i].length, 15); len >= 2; len--) {
+                if (parts[i].startsWith(parts[i - 1].slice(-len))) { cut = len; break; }
+              }
+              deduped += cut > 0 ? parts[i].slice(cut) : parts[i];
+            }
+            text = deduped;
+          }
+          console.log('[Main] ASR done in', Date.now() - asrStart, 'ms, text:', text.length, 'chars —', text.slice(0, 60));
         }
-        const rec = sherpa.createOfflineRecognizer({
-          modelConfig: {
-            senseVoice: { model: modelPath, language: '', useInverseTextNormalization: 1 },
-            tokens: tokensPath,
-          },
-        });
-        const numSamples = Math.floor((buf.length - 44) / 2);
-        const samples = new Float32Array(numSamples);
-        for (let i = 0; i < numSamples; i++) {
-          samples[i] = buf.readInt16LE(44 + i * 2) / 32768;
-        }
-        const stream = rec.createStream();
-        stream.acceptWaveform(16000, samples);
-        rec.decode(stream);
-        text = rec.getResult(stream).text || '';
-        stream.free();
-        rec.free();
-        console.log('[Main] ASR result (local):', text);
       }
+      } // end else (preAsrText / ASR inference)
 
       // Filter silence hallucinations — SenseVoice outputs spurious words for near-silent input
       const stripped = text.replace(/[，。？、！，,.\s　]/g, '').trim();
@@ -905,7 +927,7 @@ if (app) {
       let refineEnabled = false;
       try {
         const fs = require('fs');
-        const settingsPath = join(app.getPath('userData'), 'data', 'llm-settings.json');
+        const settingsPath = getDataPath('settings.json');
         if (fs.existsSync(settingsPath)) {
           refineEnabled = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')).refineEnabled ?? false;
         }
@@ -913,25 +935,21 @@ if (app) {
 
       // LLM Refinement — only if enabled AND not translating
       let originalText = text;
+      console.log('[Main] Refine check: enabled=', refineEnabled, 'ready=', refinementReady, 'provider=', !!refinementProvider, 'textLen=', text.trim().length, 'translate=', !!options?.translate);
       if (refineEnabled && refinementReady && refinementProvider && text.trim().length > 0 && !options?.translate) {
-        const online = await isNetworkAvailable();
-        if (online) {
-          try {
-            setVoiceState('refining');
-            const result = await refinementProvider.refine(text, {
-              language,
-              dictionary: options?.dictionary ?? [],
-              polishMode: (options as any)?.polishMode || 'structured',
-              customPrompt: (options as any)?.customPrompt || '',
-            });
-            text = result.refinedText;
-            console.log('[Main] Refined:', text.slice(0, 80));
-          } catch (err: any) {
-            console.error('[Main] Refine failed, using raw ASR:', err.message);
-            sendToRenderer('voice:refine-failed', { error: err.message });
-          }
-        } else {
-          console.log('[Main] Offline — skipping refinement');
+        try {
+          setVoiceState('refining');
+          const result = await refinementProvider.refine(text, {
+            language,
+            dictionary: options?.dictionary ?? [],
+            polishMode: (options as any)?.polishMode || 'structured',
+            customPrompt: (options as any)?.customPrompt || '',
+          });
+          text = result.refinedText;
+          console.log('[Main] Refined:', text.slice(0, 80));
+        } catch (err: any) {
+          console.error('[Main] Refine failed, using raw ASR:', err.message);
+          sendToRenderer('voice:refine-failed', { error: err.message });
         }
       }
 
@@ -940,22 +958,16 @@ if (app) {
         const target = options.translateTarget || 'en';
         console.log('[Main] Translating to', target, ':', text.slice(0, 40));
         if (refinementReady && refinementProvider) {
-          const online = await isNetworkAvailable();
-          if (online) {
-            try {
-              setVoiceState('refining');
-              const result = await refinementProvider.translate(text, target, {
-                language,
-                dictionary: options?.dictionary ?? [],
-              });
-              text = result.refinedText;
-              console.log('[Main] Translated:', text.slice(0, 80));
-            } catch (err: any) {
-              console.error('[Main] Translation failed:', err.message);
-              text = `[${target.toUpperCase()}] ${text}`;
-            }
-          } else {
-            console.log('[Main] Offline — translation skipped');
+          try {
+            setVoiceState('refining');
+            const result = await refinementProvider.translate(text, target, {
+              language,
+              dictionary: options?.dictionary ?? [],
+            });
+            text = result.refinedText;
+            console.log('[Main] Translated:', text.slice(0, 80));
+          } catch (err: any) {
+            console.error('[Main] Translation failed:', err.message);
             text = `[${target.toUpperCase()}] ${text}`;
           }
         } else {
@@ -964,7 +976,7 @@ if (app) {
         }
       }
 
-      console.log('[Main] Injecting text:', text.slice(0, 40));
+      console.log('[Main] Total transcribe time:', Date.now() - tStart, 'ms, injecting:', text.slice(0, 40));
       await releasePromise;
 
       const injectResult = await injectText(text);
@@ -1098,8 +1110,11 @@ if (app) {
     }, 5000);
   }
 
-  // Init recognition in background
+  // Init recognition and refinement in background
+  console.log('[Main] Starting initRecognition + initRefinement...');
   initRecognition();
+  initRefinement();
+  console.log('[Main] initRecognition + initRefinement dispatched');
 
   // Load record mode and mute-on-record from persisted settings
   recordMode = loadRecordMode();

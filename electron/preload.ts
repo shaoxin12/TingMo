@@ -43,10 +43,13 @@ const api = {
   ensureModel: () => ipcRenderer.invoke('model:ensure') as Promise<{ ok: boolean; path?: string; error?: string }>,
   checkModel: () => ipcRenderer.invoke('model:check') as Promise<{ exists: boolean; path?: string }>,
 
+  // Streaming ASR: process a small chunk, returns raw text
+  asrChunk: (wavBuf: ArrayBuffer) => ipcRenderer.invoke('voice:asr-chunk', wavBuf) as Promise<string>,
+
   // Send audio buffer to main process for transcription
   transcribe: (audioBuffer: ArrayBuffer, language?: string, opts?: {
     translate?: boolean; translateTarget?: string; dictionary?: Array<{word: string; replace: string}>;
-    polishMode?: string; customPrompt?: string;
+    polishMode?: string; customPrompt?: string; preAsrText?: string;
   }) => ipcRenderer.invoke('voice:transcribe', audioBuffer, language, opts),
 
   // Stats & history
@@ -72,11 +75,6 @@ const api = {
   // LLM / Refinement settings
   getApiKey: () => ipcRenderer.invoke('settings:get-api-key'),
   setApiKey: (key: string) => ipcRenderer.invoke('settings:set-api-key', key),
-  saveLlmSettings: (settings: {
-    refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
-    llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
-    asrCloudProvider?: string; asrCloudModel?: string; asrCloudApiKey?: string;
-  }) => ipcRenderer.invoke('settings:save-llm-settings', settings),
   initRefinement: () => ipcRenderer.invoke('settings:init-refinement'),
   reinitRecognition: () => ipcRenderer.invoke('settings:reinit-recognition') as Promise<boolean>,
   getRefinementStatus: () => ipcRenderer.invoke('settings:refinement-status'),

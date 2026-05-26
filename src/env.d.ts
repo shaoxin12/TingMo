@@ -11,9 +11,10 @@ interface TingMoAPI {
   cancelRecording: () => Promise<void>;
   reportCaptureError: (message: string) => Promise<void>;
   copyText: (text: string) => Promise<void>;
+  asrChunk: (wavBuf: ArrayBuffer) => Promise<string>;
   transcribe: (audioBuffer: ArrayBuffer, language?: string, opts?: {
     translate?: boolean; translateTarget?: string; dictionary?: Array<{word: string; replace: string}>;
-    polishMode?: string; customPrompt?: string;
+    polishMode?: string; customPrompt?: string; preAsrText?: string;
   }) => Promise<void>;
   onTranslateMode: (cb: (data: { enabled: boolean }) => void) => () => void;
   onRefineFailed: (cb: (data: { error: string }) => void) => () => void;
@@ -26,11 +27,6 @@ interface TingMoAPI {
   // LLM / Refinement
   getApiKey: () => Promise<string>;
   setApiKey: (key: string) => Promise<void>;
-  saveLlmSettings: (settings: {
-    refineEnabled?: boolean; llmProvider?: string; llmModel?: string;
-    llmBaseUrl?: string; llmApiKey?: string; asrProvider?: string;
-    asrCloudProvider?: string; asrCloudModel?: string; asrCloudApiKey?: string;
-  }) => Promise<void>;
   initRefinement: () => Promise<boolean>;
   reinitRecognition: () => Promise<boolean>;
   getRefinementStatus: () => Promise<{ ready: boolean; provider: string | null }>;

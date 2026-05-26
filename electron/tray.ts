@@ -12,9 +12,13 @@ export function setOnAsrProviderChange(cb: () => void): void {
   onAsrProviderChange = cb;
 }
 
+function getSettingsPath(): string {
+  return join(app.getPath('userData'), 'data', 'settings.json');
+}
+
 function loadAsrProvider(): 'local' | 'cloud' {
   try {
-    const p = join(app.getPath('userData'), 'data', 'llm-settings.json');
+    const p = getSettingsPath();
     if (existsSync(p)) {
       const s = JSON.parse(readFileSync(p, 'utf-8'));
       return s.asrProvider || 'local';
@@ -27,7 +31,7 @@ function saveAsrProvider(provider: 'local' | 'cloud'): void {
   try {
     const dir = join(app.getPath('userData'), 'data');
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    const p = join(dir, 'llm-settings.json');
+    const p = getSettingsPath();
     let existing: any = {};
     if (existsSync(p)) {
       try { existing = JSON.parse(readFileSync(p, 'utf-8')); } catch { /* ignore */ }

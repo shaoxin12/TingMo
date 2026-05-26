@@ -52,9 +52,26 @@ export class VolcanoASRProvider implements IRecognitionProvider {
     return true;
   }
 
-  async transcribe(audioBuffer: Buffer, sampleRate: number, _lang?: string): Promise<RecognitionResult> {
+  async transcribe(audioBuffer: Buffer, sampleRate: number, lang?: string): Promise<RecognitionResult> {
+    const volcLang = lang && lang !== 'auto' ? (lang === 'en' ? 'en-US' : 'zh-CN') : 'zh-CN';
     const t0 = performance.now();
 
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await this.transcribeOnce(audioBuffer, sampleRate, volcLang, lang, t0);
+      } catch (err: any) {
+        lastError = err;
+        if (attempt === 0) {
+          console.log('[Volcano ASR] Attempt 1 failed, retrying:', err.message);
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+    }
+    throw lastError!;
+  }
+
+  private transcribeOnce(audioBuffer: Buffer, sampleRate: number, volcLang: string, lang: string | undefined, t0: number): Promise<RecognitionResult> {
     return new Promise((resolve, reject) => {
       let finalText = '';
       const timeout = setTimeout(() => {
@@ -74,7 +91,6 @@ export class VolcanoASRProvider implements IRecognitionProvider {
 
       ws.on('open', () => {
         console.log('[Volcano ASR] WS connected');
-        // Send FullClientRequest (type=1, JSON, no compression)
         const reqJson = JSON.stringify({
           user: { uid: 'tingmo' },
           audio: {
@@ -82,7 +98,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
             rate: sampleRate || 16000,
             bits: 16,
             channel: 1,
-            language: 'zh-CN',
+            language: volcLang,
           },
           request: {
             model_name: this.model,
@@ -93,35 +109,26 @@ export class VolcanoASRProvider implements IRecognitionProvider {
         });
         const frame = buildFrame(MT_FULL_REQUEST, 0, SER_JSON, CMP_NONE, Buffer.from(reqJson, 'utf-8'));
         ws.send(frame);
-        console.log('[Volcano ASR] Sent FullClientRequest, size:', frame.length);
       });
 
       let serverReady = false;
 
       ws.on('message', (raw: Buffer) => {
         try {
-          console.log('[Volcano ASR] Raw msg, size:', raw.length, 'hex:', raw.subarray(0, 12).toString('hex'));
-
           if (raw.length < 8) return;
 
           const msgType = (raw[1] >> 4) & 0xF;
-          const flags = raw[1] & 0xF;
-          console.log('[Volcano ASR] msgType:', msgType.toString(16), 'flags:', flags.toString(16));
 
-          let offset = 4; // skip 4-byte header
-
-          // Server response (type 0x9) and error (type 0xF) have a 4-byte sequence/error-code before payload size
+          let offset = 4;
           if (msgType === MT_SERVER_RESP) {
-            const seq = raw.readUInt32BE(offset);
             offset += 4;
-            console.log('[Volcano ASR] Server resp, seq:', seq);
           } else if (msgType === MT_ERROR) {
-            const errCode = raw.readUInt32BE(offset);
-            offset += 4;
-            const errSize = raw.readUInt32BE(offset);
-            offset += 4;
-            const errMsg = raw.subarray(offset, offset + errSize).toString('utf-8');
+            const errCode = raw.readUInt32BE(offset + 4);
+            const errSize = raw.readUInt32BE(offset + 8);
+            const errMsg = raw.subarray(offset + 12, offset + 12 + errSize).toString('utf-8');
             console.error('[Volcano ASR] Server error:', errCode, errMsg);
+            clearTimeout(timeout);
+            reject(new Error(`Volcano server error ${errCode}: ${errMsg}`));
             return;
           }
 
@@ -130,27 +137,21 @@ export class VolcanoASRProvider implements IRecognitionProvider {
           if (offset + payloadSize > raw.length) return;
 
           let payload = raw.subarray(offset, offset + payloadSize);
-          const serMethod = (raw[2] >> 4) & 0xF;   // upper 4 bits of byte2 = serialization
-          const compression = raw[2] & 0xF;         // lower 4 bits of byte2 = compression
+          const compression = raw[2] & 0xF;
           if (compression === CMP_GZIP) {
             try { payload = require('zlib').gunzipSync(payload); } catch { /* keep raw */ }
           }
-          if (serMethod === SER_JSON) {
+          if ((raw[2] >> 4) & 0xF) {
             try {
               const json = JSON.parse(payload.toString('utf-8'));
-              console.log('[Volcano ASR] Server JSON:', JSON.stringify(json).slice(0, 300));
               const text = json.result?.text || '';
               if (text) finalText = text;
 
-              // First response = server ready, now send audio
               if (!serverReady) {
                 serverReady = true;
-                console.log('[Volcano ASR] Server ready, sending audio');
                 sendAudio(ws, audioBuffer);
               }
-            } catch {
-              console.log('[Volcano ASR] Non-JSON payload');
-            }
+            } catch { /* non-JSON payload */ }
           }
         } catch (err: any) {
           console.error('[Volcano ASR] Parse error:', err.message);
@@ -168,7 +169,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
         resolve({
           text: finalText.trim(),
           durationMs: performance.now() - t0,
-          language: 'zh',
+          language: lang || 'zh',
         });
       });
     });
