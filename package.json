@@ -1,6 +1,6 @@
 {
   "name": "TingMo",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "听墨 - 桌面 AI 语音输入法",
   "main": "dist-electron/main.js",
   "scripts": {
