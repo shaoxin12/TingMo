@@ -1,16 +1,21 @@
-import { app, BrowserWindow, ipcMain, session, Tray } from 'electron';
+﻿import { app, BrowserWindow, ipcMain, session, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { join } from 'path';
 import { createTray, updateTrayState, updateTrayLanguage, setOnAsrProviderChange } from './tray';
 import { startHotkey, stopHotkey, setHotkeyCallback, setHotkeyReleaseCallback, setEscCallback, waitForHotkeyRelease } from './hotkey';
+import { VK_RMENU } from './hotkey-events';
 import { injectText, backspaceChars } from './text-inserter';
 import { ensureModel } from '../src/services/model-downloader';
 import { duckSystemAudio, unduckSystemAudio } from './audio-ducking';
 import { addRecordingStats, addHistoryEntry, loadStats, loadHistory, clearHistory, loadOverview } from './stats-history';
+
+import { SherpaASRProvider } from '../src/services/funasr-sherpa';
 import { SherpaASRProvider } from '../src/services/funasr-sherpa';
 import { getLLMProvider, getASRCloudProvider } from '../src/services/llm-providers';
 
 // Single instance lock — prevent double tray icon
+// NOTE: 'app' may be undefined if Electron's built-in module injection is not yet active
+// (happens in some sandboxed/dev environments). The if(app) guards are essential.
 let gotTheLock = false;
 if (app) {
   gotTheLock = app.requestSingleInstanceLock();
@@ -43,7 +48,7 @@ function stripDwmFrame(win: BrowserWindow): void {
 
     // Disable non-client rendering (removes DWM border/shadow)
     const policy = Buffer.alloc(4);
-    policy.writeInt32LE(2, 0); // DWMNCRP_DISABLED = 2 (was 1, try 2 for more aggressive)
+    policy.writeInt32LE(2, 0); // DWMNCRP_DISABLED = 2
     DwmSetWindowAttribute(hwnd, 2, koffi.as(policy, 'void*'), 4); // DWMWA_NCRENDERING_POLICY = 2
   } catch { /* ignore */ }
 }
@@ -85,16 +90,15 @@ function writeJSON(filepath: string, data: unknown): void {
   fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
 }
 
-function loadRecordMode(): 'toggle' | 'hold' {
+function loadAppSettings(): { recordMode: 'toggle' | 'hold'; muteOnRecord: boolean } {
   const settings = readJSON<any>(getDataPath('settings.json'), {});
-  return settings.recordMode || 'toggle';
-}
-function loadMuteOnRecord(): boolean {
-  const settings = readJSON<any>(getDataPath('settings.json'), {});
-  return settings.muteOnRecord ?? true;
+  return {
+    recordMode: settings.recordMode || 'toggle',
+    muteOnRecord: settings.muteOnRecord ?? true,
+  };
 }
 
-// Key name → VK code mapping for translate modifier
+// Key name → VK code mapping for translate modifier (also reused for hotkey settings)
 const MODIFIER_VK_MAP: Record<string, number> = {
   '右 Shift': 0xA1, 'Right Shift': 0xA1, '오른쪽 Shift': 0xA1,
   '右 Ctrl': 0xA3, 'Right Ctrl': 0xA3, '오른쪽 Ctrl': 0xA3,
@@ -103,6 +107,16 @@ const MODIFIER_VK_MAP: Record<string, number> = {
   '右 Alt': 0xA5, 'Right Alt': 0xA5, '오른쪽 Alt': 0xA5,
   '左 Alt': 0xA4, 'Left Alt': 0xA4, '왼쪽 Alt': 0xA4,
 };
+
+// VK_NAME_MAP — used by settings:set-translate-modifier and settings:set-hotkey IPC handlers
+// (alias of MODIFIER_VK_MAP since both handlers map key names to VK codes)
+const VK_NAME_MAP = MODIFIER_VK_MAP;
+
+let recordingHotkeyVK = VK_RMENU; // default: Right Alt
+
+// Floating window dimensions — shared between createFloatingWindow and positionOnActiveDisplay
+const FLOATING_WIN_WIDTH = 160;
+const FLOATING_WIN_HEIGHT = 44;
 
 function clearAutoDismiss(): void {
   if (autoDismissTimer) {
@@ -326,8 +340,8 @@ async function downloadModel(modelDir: string): Promise<string> {
 
 function createFloatingWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 160,
-    height: 44,
+    width: FLOATING_WIN_WIDTH,
+    height: FLOATING_WIN_HEIGHT,
     transparent: true,
     backgroundColor: '#00000000',
     frame: false,
@@ -347,17 +361,9 @@ function createFloatingWindow(): BrowserWindow {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   stripDwmFrame(win);
 
-  // Ensure web contents also has no background
+  // Ensure web contents also has no background + drain pending state
   win.webContents.on('did-finish-load', () => {
     win?.webContents.insertCSS('html,body,#root{background:transparent !important}');
-  });
-  floatingReady = false;
-
-  // Always position from screen geometry — never use cached floatingPosition,
-  // and don't listen for moved events (DWM adjustments cause drift).
-  positionOnActiveDisplay(win);
-
-  win.webContents.on('did-finish-load', () => {
     floatingReady = true;
     if (pendingTranslateMode !== null) {
       win.webContents.send('voice:translate-mode', { enabled: pendingTranslateMode });
@@ -368,9 +374,10 @@ function createFloatingWindow(): BrowserWindow {
       pendingState = null;
     }
   });
+  floatingReady = false;
 
   if (process.env.NODE_ENV === 'development') {
-    win.loadURL('http://localhost:5173');
+    win.loadURL('http://localhost:5173/#/');
   } else {
     win.loadFile(join(__dirname, '../dist/index.html'));
   }
@@ -393,9 +400,9 @@ function positionOnActiveDisplay(win: BrowserWindow): void {
   const bounds = d.bounds;
   const wa = d.workArea;
   const taskbarH = (bounds.y + bounds.height) - (wa.y + wa.height);
-  const x = Math.round(bounds.x + (bounds.width - 160) / 2);
-  const y = bounds.y + bounds.height - taskbarH - 44 - 6;
-  win.setBounds({ x, y, width: 160, height: 44 });
+  const x = Math.round(bounds.x + (bounds.width - FLOATING_WIN_WIDTH) / 2);
+  const y = bounds.y + bounds.height - taskbarH - FLOATING_WIN_HEIGHT - 6;
+  win.setBounds({ x, y, width: FLOATING_WIN_WIDTH, height: FLOATING_WIN_HEIGHT });
 }
 
 function showFloatingWindow(): void {
@@ -406,7 +413,7 @@ function showFloatingWindow(): void {
   floatingWindow.showInactive();
   // Override any DWM async adjustment after show
   setImmediate(() => {
-    if (floatingWindow && !floatingWindow.isDestroyed()) {
+    if (floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()) {
       positionOnActiveDisplay(floatingWindow);
     }
   });
@@ -642,21 +649,22 @@ if (app) {
   });
 
   ipcMain.handle('settings:save-app-settings', (_event, settings: Record<string, unknown>) => {
+    const filepath = getDataPath('settings.json');
+    console.log('[Main] saveAppSettings called. hasKey:', !!settings.asrCloudApiKey, 'asrProvider:', settings.asrProvider);
+    const existing = readJSON<any>(filepath, {});
+    Object.assign(existing, settings);
     try {
-      const filepath = getDataPath('settings.json');
-      console.log('[Main] saveAppSettings called. hasKey:', !!settings.asrCloudApiKey, 'asrProvider:', settings.asrProvider);
-      const existing = readJSON<any>(filepath, {});
-      Object.assign(existing, settings);
       writeJSON(filepath, existing);
       console.log('[Main] Written to:', filepath);
-      if (typeof settings.recordMode === 'string') {
-        recordMode = (settings as any).recordMode;
-      }
-      if (typeof settings.launchAtStartup === 'boolean') {
-        app.setLoginItemSettings({ openAtLogin: settings.launchAtStartup as boolean });
-      }
     } catch (err: any) {
       console.error('[Main] Failed to save settings:', err.message);
+      throw err; // Propagate to renderer so it knows save failed
+    }
+    if (typeof settings.recordMode === 'string') {
+      recordMode = (settings as any).recordMode;
+    }
+    if (typeof settings.launchAtStartup === 'boolean') {
+      app.setLoginItemSettings({ openAtLogin: settings.launchAtStartup as boolean });
     }
   });
 
@@ -734,6 +742,7 @@ if (app) {
   ipcMain.handle('model:check', () => {
     const modelPath = join(app.getPath('userData'), 'models', 'funasr', 'model.int8.onnx');
     const tokensPath = join(app.getPath('userData'), 'models', 'funasr', 'tokens.txt');
+    const fs = require('fs');
     const exists = fs.existsSync(modelPath) && fs.existsSync(tokensPath);
     return { exists, path: exists ? modelPath : null };
   });
@@ -1145,9 +1154,10 @@ if (app) {
   initRefinement();
   console.log('[Main] initRecognition + initRefinement dispatched');
 
-  // Load record mode and mute-on-record from persisted settings
-  recordMode = loadRecordMode();
-  muteOnRecord = loadMuteOnRecord();
+  // Load record mode and mute-on-record from persisted settings (one read)
+  const loaded = loadAppSettings();
+  recordMode = loaded.recordMode;
+  muteOnRecord = loaded.muteOnRecord;
 
   const initLocale = app.getLocale()?.startsWith('zh') ? 'zh-CN' : 'en';
   currentLocale = initLocale;

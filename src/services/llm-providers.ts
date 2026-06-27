@@ -112,3 +112,29 @@ export function getLLMModels(key: string): string[] {
 export function getASRModels(key: string): string[] {
   return getASRCloudProvider(key)?.models || [];
 }
+
+const MODEL_LABELS: Record<string, string> = {
+  'whisper-1': 'Whisper v1',
+  'bigmodel': '豆包流式语音识别 2.0',
+  'fun-asr-realtime': 'Fun-ASR 实时',
+  'qwen3-asr-flash-realtime': 'Qwen3-ASR-Flash 实时',
+  'gpt-4o-mini': 'GPT-4o mini',
+  'gpt-4.1-nano': 'GPT-4.1 Nano',
+  'gpt-4o': 'GPT-4o',
+  'gpt-4.1': 'GPT-4.1',
+  'o4-mini': 'o4-mini',
+  'deepseek-v4-flash': 'DeepSeek V4 Flash',
+  'moonshot-v1-8k': 'Moonshot v1 8K',
+  'moonshot-v1-32k': 'Moonshot v1 32K',
+  'moonshot-v1-128k': 'Moonshot v1 128K',
+  'abab6.5s-chat': 'ABAB 6.5s',
+  'glm-4-flash': 'GLM-4 Flash',
+  'doubao-seed-1.6-flash': '豆包 Seed 1.6 Flash',
+  'doubao-seed-1.6': '豆包 Seed 1.6',
+  'doubao-seed-1.6-thinking': '豆包 Seed 1.6 Thinking',
+  'deepseek-r1-0528': 'DeepSeek R1',
+};
+
+export function getModelLabel(model: string): string {
+  return MODEL_LABELS[model] || model;
+}

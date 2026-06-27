@@ -65,16 +65,6 @@ const D: Record<string, LocaleMap> = {
   'settings.model':                { 'zh-CN': '模型',         'zh-TW': '模型',         en: 'Model',             ja: 'モデル',        ko: '모델' },
   'settings.apiEndpoint':          { 'zh-CN': 'API 端点',     'zh-TW': 'API 端點',     en: 'API endpoint',      ja: 'APIエンドポイント', ko: 'API 엔드포인트' },
   'settings.apiEndpointPlaceholder':{ 'zh-CN': 'https://api.openai.com/v1','zh-TW': 'https://api.openai.com/v1', en: 'https://api.openai.com/v1', ja: 'https://api.openai.com/v1', ko: 'https://api.openai.com/v1' },
-  'settings.polishMode':             { 'zh-CN': '润色风格', 'zh-TW': '潤色風格', en: 'Polish style',   ja: '補正スタイル',   ko: '교정 스타일' },
-  'settings.customPrompt':           { 'zh-CN': '自定义提示词', 'zh-TW': '自定義提示詞', en: 'Custom prompt',  ja: 'カスタムプロンプト', ko: '사용자 지정 프롬프트' },
-  'settings.customPromptPlaceholder':{ 'zh-CN': '输入自定义润色提示词，可用 {dict_hint} 插入词典提示', 'zh-TW': '輸入自定義潤色提示詞，可用 {dict_hint} 插入詞典提示', en: 'Custom polish prompt. Use {dict_hint} to insert dictionary hints.', ja: 'カスタム補正プロンプト。{dict_hint}で辞書ヒントを挿入。', ko: '사용자 지정 교정 프롬프트. {dict_hint}로 사전 힌트를 삽입하세요.' },
-
-  // ── Polish modes ───────────────────────────────────────
-  'polish.raw':        { 'zh-CN': '原样（仅标点）',  'zh-TW': '原樣（僅標點）',    en: 'Raw (punctuation only)',  ja: 'そのまま（句読点のみ）',    ko: '원본 (문장 부호만)' },
-  'polish.light':      { 'zh-CN': '轻度（去口语词）', 'zh-TW': '輕度（去口語詞）', en: 'Light (remove fillers)',  ja: '軽度（フィラー除去）',      ko: '가벼운 (필러 제거)' },
-  'polish.structured': { 'zh-CN': '结构化',            'zh-TW': '結構化',           en: 'Structured',              ja: '構造化',                    ko: '구조화' },
-  'polish.formal':     { 'zh-CN': '正式书面语',       'zh-TW': '正式書面語',       en: 'Formal',                  ja: 'フォーマル',               ko: '격식체' },
-  'polish.custom':     { 'zh-CN': '自定义',            'zh-TW': '自定義',           en: 'Custom',                  ja: 'カスタム',                 ko: '사용자 지정' },
 
   // ── Model tab ──────────────────────────────────────────
   'model.asrSection':           { 'zh-CN': 'ASR 语音识别', 'zh-TW': 'ASR 語音識別', en: 'ASR',       ja: 'ASR音声認識',  ko: 'ASR 음성 인식' },

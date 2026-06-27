@@ -16,20 +16,19 @@ export class OpenAIProvider implements IRefinementProvider {
   async refine(rawText: string, context?: RefineContext): Promise<RefinementResult> {
     const t0 = performance.now();
     const systemPrompt = buildRefinePrompt(context);
-    // Fallback: use streaming internally for speed, collect all chunks
     let text = '';
     try {
       const gen = this.streamRefine(rawText, context);
       for (let r = await gen.next(); !r.done; r = await gen.next()) {
         text += r.value;
       }
-      return gen['return']?.() || { refinedText: text || rawText, originalText: rawText, provider: `openai/${this.config.model}`, durationMs: performance.now() - t0 };
+      return { refinedText: text || rawText, originalText: rawText, provider: `openai/${this.config.model}`, durationMs: performance.now() - t0 };
     } catch {
       return this.callAPI(systemPrompt, rawText, t0);
     }
   }
 
-  async *streamRefine(rawText: string, context?: RefineContext): AsyncGenerator<string, RefinementResult, void> {
+  async *streamRefine(rawText: string, context?: RefineContext, signal?: AbortSignal): AsyncGenerator<string, RefinementResult, void> {
     const t0 = performance.now();
     const systemPrompt = buildRefinePrompt(context);
     const baseUrl = (this.config.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
@@ -38,6 +37,10 @@ export class OpenAIProvider implements IRefinementProvider {
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
+    if (signal) {
+      if (signal.aborted) { controller.abort(); clearTimeout(timer); }
+      else signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
 
     try {
       const res = await fetch(url, {
@@ -52,7 +55,7 @@ export class OpenAIProvider implements IRefinementProvider {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: buildUserPrompt(rawText) },
           ],
-          max_tokens: 2048,
+          max_tokens: rawText.length < 30 ? 256 : 1024,
           temperature: 0.1,
           stream: true,
         }),
@@ -131,7 +134,7 @@ export class OpenAIProvider implements IRefinementProvider {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: buildUserPrompt(userText) },
           ],
-          max_tokens: 2048,
+          max_tokens: userText.length < 30 ? 256 : 1024,
           temperature: 0.1,
         }),
         signal: controller.signal,

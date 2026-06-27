@@ -179,6 +179,11 @@ export function addHistoryEntry(text: string, charCount: number, originalText?: 
 
 export function clearHistory(): void {
   saveHistory([]);
+}
+
+export function clearAllStats(): void {
   statsCache = { totalDurationMs: 0, totalCharCount: 0, totalSessions: 0 };
   saveStats(statsCache);
+  dailyCache = [];
+  saveDaily([]);
 }

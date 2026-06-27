@@ -5,7 +5,7 @@ const KEYEVENTF_UNICODE = 0x0004;
 const KEYEVENTF_KEYUP = 0x0002;
 
 const VK_BACK = 0x08;
-const KEYEVENTF_EXTENDEDKEY = 0x0001;
+const VK_RETURN = 0x0D;
 
 const user32 = koffi.load('user32.dll');
 
@@ -22,55 +22,68 @@ export interface InjectResult {
 }
 
 const INPUT_SIZE = 40;
-const inputBuf = Buffer.alloc(INPUT_SIZE);
 
-function fillInputStruct(codePoint: number, flags: number): void {
-  inputBuf.fill(0);
-  let offset = 0;
-  offset = inputBuf.writeUInt32LE(INPUT_KEYBOARD, offset);
-  offset += 4;
-  offset = inputBuf.writeUInt16LE(0, offset);
-  offset = inputBuf.writeUInt16LE(codePoint, offset);
-  offset = inputBuf.writeUInt32LE(flags, offset);
-  offset = inputBuf.writeUInt32LE(0, offset);
-  inputBuf.writeBigUInt64LE(0n, 24);
-}
-
-function fillVkStruct(vkCode: number, flags: number): void {
-  inputBuf.fill(0);
-  let offset = 0;
-  offset = inputBuf.writeUInt32LE(INPUT_KEYBOARD, offset);
-  offset = inputBuf.writeUInt16LE(vkCode, offset);      // wVk
-  offset = inputBuf.writeUInt16LE(0, offset);            // wScan (0 for VK)
-  offset = inputBuf.writeUInt32LE(flags, offset);
-  offset = inputBuf.writeUInt32LE(0, offset);
-  inputBuf.writeBigUInt64LE(0n, 24);
+function writeInput(buf: Buffer, base: number, vk: number, scan: number, flags: number): void {
+  buf.writeUInt32LE(INPUT_KEYBOARD, base);      // type
+  // offset 4-7: implicit padding
+  buf.writeUInt16LE(vk, base + 8);              // wVk
+  buf.writeUInt16LE(scan, base + 10);           // wScan
+  buf.writeUInt32LE(flags, base + 12);          // dwFlags
+  buf.writeUInt32LE(0, base + 16);              // time (0 = system default)
+  // offset 20-23: implicit padding
+  buf.writeBigUInt64LE(0n, base + 24);          // dwExtraInfo
 }
 
 export async function backspaceChars(count: number): Promise<void> {
+  const buf = Buffer.alloc(count * 2 * INPUT_SIZE);
   for (let i = 0; i < count; i++) {
-    fillVkStruct(VK_BACK, 0);
-    SendInput(1, koffi.as(inputBuf, 'void *'), INPUT_SIZE);
-    fillVkStruct(VK_BACK, KEYEVENTF_KEYUP);
-    SendInput(1, koffi.as(inputBuf, 'void *'), INPUT_SIZE);
+    writeInput(buf, i * 2 * INPUT_SIZE, VK_BACK, 0, 0);
+    writeInput(buf, (i * 2 + 1) * INPUT_SIZE, VK_BACK, 0, KEYEVENTF_KEYUP);
+  }
+  if (count > 0) {
+    const injected = SendInput(count * 2, koffi.as(buf, 'void *'), INPUT_SIZE);
+    if (injected !== count * 2) {
+      console.warn('[TextInserter] backspaceChars: injected', injected, 'of', count * 2, 'events');
+    }
   }
 }
 
+// Fast one-shot injection: builds all INPUT structs in a single buffer,
+// sends them in ONE SendInput call. Handles \n as Enter key.
 export async function injectText(text: string): Promise<InjectResult> {
   const start = performance.now();
 
+  // Count inputs needed: \n uses 2 (VK_RETURN down+up), others use 2 (unicode down+up)
+  let inputCount = 0;
   for (const ch of text) {
-    const codePoint = ch.codePointAt(0) ?? 0;
+    inputCount += 2;
+  }
 
-    fillInputStruct(codePoint, KEYEVENTF_UNICODE);
-    SendInput(1, koffi.as(inputBuf, 'void *'), INPUT_SIZE);
+  if (inputCount === 0) {
+    return { success: true, charCount: 0, durationMs: 0 };
+  }
 
-    fillInputStruct(codePoint, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP);
-    SendInput(1, koffi.as(inputBuf, 'void *'), INPUT_SIZE);
+  const buf = Buffer.alloc(inputCount * INPUT_SIZE);
+  let idx = 0;
+
+  for (const ch of text) {
+    if (ch === '\n') {
+      writeInput(buf, (idx++) * INPUT_SIZE, VK_RETURN, 0, 0);
+      writeInput(buf, (idx++) * INPUT_SIZE, VK_RETURN, 0, KEYEVENTF_KEYUP);
+    } else {
+      const cp = ch.codePointAt(0) ?? 0;
+      writeInput(buf, (idx++) * INPUT_SIZE, 0, cp, KEYEVENTF_UNICODE);
+      writeInput(buf, (idx++) * INPUT_SIZE, 0, cp, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP);
+    }
+  }
+
+  const injected = SendInput(idx, koffi.as(buf, 'void *'), INPUT_SIZE);
+  if (injected !== idx) {
+    console.warn('[TextInserter] injectText: injected', injected, 'of', idx, 'events');
   }
 
   return {
-    success: true,
+    success: injected > 0,
     charCount: text.length,
     durationMs: performance.now() - start,
   };

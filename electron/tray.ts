@@ -60,14 +60,19 @@ function createTrayIcon(state: 'default' | 'recording' | 'recognizing'): NativeI
   return img;
 }
 
+const TINT_ICON_SIZE = 32;
+const TINT_RADIUS = 10; // Circle radius from bottom-right corner
+const TINT_THRESHOLD_SQ = 22; // Squared distance threshold for tinting
+
 function tintIcon(icon: NativeImage, r: number, g: number, b: number): NativeImage {
-  const size = 32;
+  const size = TINT_ICON_SIZE;
   const buf = icon.toBitmap();
+  // Tint lower-right quadrant with a circular mask
   for (let py = size / 2; py < size; py++) {
     for (let px = size / 2; px < size; px++) {
-      const dx = px - size + 10;
-      const dy = py - size + 10;
-      if (dx * dx + dy * dy > 22) continue;
+      const dx = px - size + TINT_RADIUS;
+      const dy = py - size + TINT_RADIUS;
+      if (dx * dx + dy * dy > TINT_THRESHOLD_SQ) continue;
       const idx = (py * size + px) * 4;
       buf[idx] = r;
       buf[idx + 1] = g;
@@ -146,10 +151,7 @@ function buildMenu(
     { type: 'separator' },
     {
       label: t('tray.quit'),
-      click: () => {
-        const { app } = require('electron');
-        app.quit();
-      },
+      click: () => app.quit(),
     },
   ]);
 }
@@ -158,6 +160,16 @@ let recordMode: 'toggle' | 'hold' = 'toggle';
 let onRecordModeChange: ((mode: 'toggle' | 'hold') => void) | null = null;
 let muteOnRecord = true;
 let onMuteOnRecordChange: ((enabled: boolean) => void) | null = null;
+
+// Keep module-level state in sync before delegating to external callbacks
+function handleRecordModeChange(mode: 'toggle' | 'hold'): void {
+  recordMode = mode;
+  onRecordModeChange?.(mode);
+}
+function handleMuteOnRecordChange(enabled: boolean): void {
+  muteOnRecord = enabled;
+  onMuteOnRecordChange?.(enabled);
+}
 
 export function createTray(
   locale: Locale,
@@ -175,13 +187,7 @@ export function createTray(
   const tray = new Tray(icon);
   tray.setToolTip(trayT(locale, 'tray.tooltip'));
 
-  const menu = buildMenu(locale, openSettings, recordMode, (mode) => {
-    recordMode = mode;
-    onRecordModeChange?.(mode);
-  }, muteOnRecord, (enabled) => {
-    muteOnRecord = enabled;
-    onMuteOnRecordChange?.(enabled);
-  });
+  const menu = buildMenu(locale, openSettings, recordMode, handleRecordModeChange, muteOnRecord, handleMuteOnRecordChange);
   tray.setContextMenu(menu);
   tray.on('click', () => openSettings());
 
@@ -191,13 +197,7 @@ export function createTray(
 export function updateTrayLanguage(tray: Tray | null, locale: Locale, openSettings: () => void): void {
   if (!tray || tray.isDestroyed()) return;
   tray.setToolTip(trayT(locale, 'tray.tooltip'));
-  const menu = buildMenu(locale, openSettings, recordMode, (mode) => {
-    recordMode = mode;
-    onRecordModeChange?.(mode);
-  }, muteOnRecord, (enabled) => {
-    muteOnRecord = enabled;
-    onMuteOnRecordChange?.(enabled);
-  });
+  const menu = buildMenu(locale, openSettings, recordMode, handleRecordModeChange, muteOnRecord, handleMuteOnRecordChange);
   tray.setContextMenu(menu);
 }
 

@@ -6,7 +6,6 @@ export type RecordMode = 'toggle' | 'hold';
 export type Language = 'zh' | 'en';
 export type TranslateLang = 'en' | 'zh' | 'ja' | 'ko' | 'fr' | 'de' | 'es';
 export type UILanguage = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko';
-export type PolishMode = 'raw' | 'light' | 'structured' | 'formal' | 'custom';
 
 export interface DictEntry {
   word: string;
@@ -36,8 +35,6 @@ export interface SettingsState {
   asrCloudProvider: string;
   asrCloudModel: string;
   asrCloudApiKey: string;
-  polishMode: PolishMode;
-  customPrompt: string;
   selectedMicDeviceId: string;
   uiLanguage: UILanguage;
   _hydrated: boolean;
@@ -65,8 +62,6 @@ export interface SettingsState {
   setAsrCloudProvider: (p: string) => void;
   setAsrCloudModel: (model: string) => void;
   setAsrCloudApiKey: (key: string) => void;
-  setPolishMode: (mode: PolishMode) => void;
-  setCustomPrompt: (prompt: string) => void;
   setSelectedMicDeviceId: (id: string) => void;
   setUiLanguage: (lang: UILanguage) => void;
   hydrate: () => Promise<void>;
@@ -93,11 +88,12 @@ function schedulePersist(state: SettingsState): void {
         useDictionary: state.useDictionary,
         translateTarget: state.translateTarget,
         dictionary: state.dictionary,
-        polishMode: state.polishMode,
-        customPrompt: state.customPrompt,
+        refineEnabled: state.refineEnabled,
         selectedMicDeviceId: state.selectedMicDeviceId,
         uiLanguage: state.uiLanguage,
         llmProvider: state.llmProvider,
+        llmModel: state.llmModel,
+        llmBaseUrl: state.llmBaseUrl,
         llmApiKey: state.llmApiKey,
         asrCloudProvider: state.asrCloudProvider,
         asrCloudModel: state.asrCloudModel,
@@ -128,8 +124,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   asrCloudProvider: 'openai',
   asrCloudModel: 'whisper-1',
   asrCloudApiKey: '',
-  polishMode: 'structured',
-  customPrompt: '',
   selectedMicDeviceId: '',
   uiLanguage: 'zh-CN',
   _hydrated: false,
@@ -147,7 +141,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   removeDictEntry: (index) => { set((s) => ({ dictionary: s.dictionary.filter((_, i) => i !== index) })); schedulePersist(get()); },
   resetHotkey: () => { set({ hotkey: DEFAULT_HOTKEY }); schedulePersist(get()); },
   resetTranslateHotkey: () => { set({ translateHotkey: DEFAULT_TRANSLATE_HOTKEY }); schedulePersist(get()); },
-  setRefineEnabled: (enabled) => set({ refineEnabled: enabled }),
+  setRefineEnabled: (enabled) => { set({ refineEnabled: enabled }); schedulePersist(get()); },
 
   setLlmProvider: (p) => {
     const preset = getLLMProvider(p);
@@ -156,10 +150,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       llmModel: preset?.defaultModel || 'gpt-4o-mini',
       llmBaseUrl: preset?.baseUrl || 'https://api.openai.com/v1',
     });
+    schedulePersist(get());
   },
   setLlmApiKey: (key) => { set({ llmApiKey: key }); schedulePersist(get()); },
   setLlmModel: (model) => { set({ llmModel: model }); schedulePersist(get()); },
-  setLlmBaseUrl: (url) => set({ llmBaseUrl: url }),
+  setLlmBaseUrl: (url) => { set({ llmBaseUrl: url }); schedulePersist(get()); },
 
   setAsrCloudProvider: (p) => {
     const asrPreset = getASRCloudProvider(p);
@@ -168,8 +163,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setAsrCloudModel: (model) => { set({ asrCloudModel: model }); schedulePersist(get()); },
   setAsrCloudApiKey: (key) => { set({ asrCloudApiKey: key }); schedulePersist(get()); },
-  setPolishMode: (mode) => { set({ polishMode: mode }); schedulePersist(get()); },
-  setCustomPrompt: (prompt) => { set({ customPrompt: prompt }); schedulePersist(get()); },
   setSelectedMicDeviceId: (id) => { set({ selectedMicDeviceId: id }); schedulePersist(get()); },
   setUiLanguage: (lang) => { set({ uiLanguage: lang }); schedulePersist(get()); },
 
@@ -190,11 +183,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           useDictionary: saved.useDictionary ?? true,
           translateTarget: saved.translateTarget || 'en',
           dictionary: saved.dictionary || [],
-          polishMode: saved.polishMode || 'structured',
-          customPrompt: saved.customPrompt || '',
+          refineEnabled: saved.refineEnabled ?? false,
           selectedMicDeviceId: saved.selectedMicDeviceId || '',
           uiLanguage: saved.uiLanguage || 'zh-CN',
           llmProvider: saved.llmProvider || 'openai',
+          llmModel: saved.llmModel || 'gpt-4o-mini',
+          llmBaseUrl: saved.llmBaseUrl || 'https://api.openai.com/v1',
           llmApiKey: saved.llmApiKey || '',
           asrCloudProvider: saved.asrCloudProvider || 'openai',
           asrCloudModel: saved.asrCloudModel || 'whisper-1',

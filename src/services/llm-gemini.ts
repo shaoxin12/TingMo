@@ -18,14 +18,15 @@ export class GeminiProvider implements IRefinementProvider {
     const systemPrompt = buildRefinePrompt(context);
     try {
       const gen = this.streamRefine(rawText, context);
-      for (let r = await gen.next(); !r.done; r = await gen.next()) { /* accumulate */ }
-      return { refinedText: '', originalText: rawText, provider: `gemini/${this.config.model}`, durationMs: performance.now() - t0 };
+      let text = '';
+      for (let r = await gen.next(); !r.done; r = await gen.next()) { text += r.value; }
+      return { refinedText: text || rawText, originalText: rawText, provider: `gemini/${this.config.model}`, durationMs: performance.now() - t0 };
     } catch {
       return this.callAPI(systemPrompt, rawText, t0);
     }
   }
 
-  async *streamRefine(rawText: string, context?: RefineContext): AsyncGenerator<string, RefinementResult, void> {
+  async *streamRefine(rawText: string, context?: RefineContext, signal?: AbortSignal): AsyncGenerator<string, RefinementResult, void> {
     const t0 = performance.now();
     const systemPrompt = buildRefinePrompt(context);
     const baseUrl = (this.config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
@@ -35,11 +36,15 @@ export class GeminiProvider implements IRefinementProvider {
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
+    if (signal) {
+      if (signal.aborted) { controller.abort(); clearTimeout(timer); }
+      else signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
 
     try {
       const body: any = {
         contents: [{ parts: [{ text: buildUserPrompt(rawText) }] }],
-        generationConfig: { maxOutputTokens: 2048, temperature: 0.1 },
+        generationConfig: { maxOutputTokens: rawText.length < 30 ? 256 : 1024, temperature: 0.1 },
       };
       if (systemPrompt) {
         body.systemInstruction = { parts: [{ text: systemPrompt }] };
@@ -114,7 +119,7 @@ export class GeminiProvider implements IRefinementProvider {
     try {
       const body: any = {
         contents: [{ parts: [{ text: buildUserPrompt(userText) }] }],
-        generationConfig: { maxOutputTokens: 2048, temperature: 0.1 },
+        generationConfig: { maxOutputTokens: userText.length < 30 ? 256 : 1024, temperature: 0.1 },
       };
 
       if (systemPrompt) {

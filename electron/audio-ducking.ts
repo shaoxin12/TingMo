@@ -97,10 +97,30 @@ function getPS(): Promise<void> {
   });
 }
 
+const CMD_TIMEOUT = 5000;
+
 function sendCmd(cmd: string): Promise<string> {
-  return getPS().then(() => new Promise<string>((resolve) => {
+  return getPS().then(() => new Promise<string>((resolve, reject) => {
     pendingResolve = resolve;
-    psProc!.stdin!.write(cmd + '\n');
+    if (psProc?.stdin) {
+      psProc.stdin.write(cmd + '\n');
+    } else {
+      pendingResolve = null;
+      reject(new Error('Audio ducking: psProc not ready'));
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (pendingResolve === resolve) {
+        pendingResolve = null;
+        reject(new Error(`Audio ducking command "${cmd}" timed out`));
+      }
+    }, CMD_TIMEOUT);
+    // Clear the timeout when the command completes
+    const originalResolve = resolve;
+    pendingResolve = (v: string) => {
+      clearTimeout(timer);
+      originalResolve(v);
+    };
   }));
 }
 

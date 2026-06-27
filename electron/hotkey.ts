@@ -47,8 +47,8 @@ const GetModuleHandleW = kernel32.func('GetModuleHandleW', 'void *', ['str16']);
 const KEYEVENTF_KEYUP = 0x0002;
 const keybd_event = user32.func('keybd_event', 'void', ['uint8', 'uint8', 'uint32', 'uintptr']);
 
-function injectAltKeyUp(): void {
-  keybd_event(VK_RMENU, 0, KEYEVENTF_KEYUP, 0);
+function injectKeyUp(): void {
+  keybd_event(currentVk, 0, KEYEVENTF_KEYUP, 0);
 }
 
 let pressCallback: (() => void) | null = null;
@@ -59,8 +59,8 @@ let hookProc: unknown = null;
 let wasPressed = false;
 let wasEscPressed = false;
 
-export function setHotkeyCallback(cb: (pressed: boolean) => void): void {
-  pressCallback = () => cb(true);
+export function setHotkeyCallback(cb: () => void): void {
+  pressCallback = cb;
 }
 
 export function setHotkeyReleaseCallback(cb: () => void): void {
@@ -102,9 +102,9 @@ export function startHotkey(vkCode?: number): void {
       wasPressed = action.nextWasPressed;
       if (action.triggerPressed) {
         pressCallback?.();
-        // Inject synthetic key-up so Windows doesn't think Alt is stuck.
+        // Inject synthetic key-up so Windows doesn't think the hotkey is stuck.
         // The injected event has LLKHF_INJECTED set → our hook passes it through.
-        injectAltKeyUp();
+        injectKeyUp();
       }
       if (action.triggerReleased) releaseCallback?.();
 

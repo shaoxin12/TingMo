@@ -1,19 +1,7 @@
 import type { IRecognitionProvider, RecognitionResult } from './speech-recognition';
+import { parseWAV, splitWavChunks, joinChunkResults } from './audio-chunker';
 
-function findFile(fs: any, path: any, dir: string, filename: string): string | null {
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const result = findFile(fs, path, path.join(dir, entry.name), filename);
-        if (result) return result;
-      } else if (entry.name === filename) {
-        return path.join(dir, entry.name);
-      }
-    }
-  } catch { /* ignore */ }
-  return null;
-}
+const CHUNK_SECS = 10;
 
 export class SherpaASRProvider implements IRecognitionProvider {
   readonly name = 'SenseVoiceSmall';
@@ -41,30 +29,25 @@ export class SherpaASRProvider implements IRecognitionProvider {
         return false;
       }
 
-      // tokens.txt might be in a subdirectory from old tar.bz2 extraction
       if (!fs.existsSync(tokensPath)) {
-        console.log('[SherpaASR] tokens.txt not at top level, searching subdirectories...');
-        const found = findFile(fs, path, this.modelDir, 'tokens.txt');
-        if (found) {
-          tokensPath = found;
-          console.log('[SherpaASR] Found tokens.txt at', found);
+        console.log('[SherpaASR] searching for tokens.txt...');
+        for (const entry of fs.readdirSync(this.modelDir, { withFileTypes: true })) {
+          if (entry.isDirectory()) {
+            const p = path.join(this.modelDir, entry.name, 'tokens.txt');
+            if (fs.existsSync(p)) { tokensPath = p; break; }
+          }
         }
+        if (!tokensPath) console.warn('[SherpaASR] tokens.txt not found in subdirs');
       }
 
-      const config = {
+      this.recognizer = this.sherpa.createOfflineRecognizer({
         modelConfig: {
-          senseVoice: {
-            model: modelPath,
-            language: '', // auto-detect
-            useInverseTextNormalization: 1,
-          },
+          senseVoice: { model: modelPath, language: '', useInverseTextNormalization: 1 },
           tokens: tokensPath,
         },
-      };
-
-      this.recognizer = this.sherpa.createOfflineRecognizer(config);
+      });
       this.isReady = true;
-      console.log('[SherpaASR] Initialized (sherpa-onnx)');
+      console.log('[SherpaASR] Initialized');
       return true;
     } catch (err: any) {
       console.error('[SherpaASR] Init error:', err.message);
@@ -73,41 +56,44 @@ export class SherpaASRProvider implements IRecognitionProvider {
     }
   }
 
-  async transcribe(
-    audioBuffer: Buffer,
-    _sampleRate: number,
-    lang?: string,
-  ): Promise<RecognitionResult> {
+  async transcribe(audioBuffer: Buffer, _sampleRate: number, lang?: string): Promise<RecognitionResult> {
     const t0 = performance.now();
+    const { samples } = parseWAV(audioBuffer);
+    const SAMPLE_RATE = 16000;
+    const totalSecs = samples.length / SAMPLE_RATE;
 
-    // Parse WAV: 16-bit PCM mono → Float32Array (16kHz after browser resampling)
-    const numSamples = Math.floor((audioBuffer.length - 44) / 2);
-    const samples = new Float32Array(numSamples);
-    for (let i = 0; i < numSamples; i++) {
-      samples[i] = audioBuffer.readInt16LE(44 + i * 2) / 32768;
+    // Short audio: single pass
+    if (totalSecs <= CHUNK_SECS + 2) {
+      const stream = this.recognizer.createStream();
+      stream.acceptWaveform(SAMPLE_RATE, samples);
+      this.recognizer.decode(stream);
+      const text = this.recognizer.getResult(stream).text || '';
+      stream.free();
+      console.log('[SherpaASR] Single pass,', (performance.now() - t0).toFixed(0), 'ms,', text.length, 'chars');
+      return { text, durationMs: performance.now() - t0, language: lang || 'zh', confidence: 0.85 };
     }
 
-    const stream = this.recognizer.createStream();
-    stream.acceptWaveform(16000, samples);
-    this.recognizer.decode(stream);
-    const text = this.recognizer.getResult(stream).text || '';
-    stream.free();
+    // Long audio: split into overlapping chunks (sequential — ONNX Runtime uses internal threading)
+    const chunkWavs = splitWavChunks(audioBuffer, CHUNK_SECS, 1);
+    console.log('[SherpaASR] Splitting into', chunkWavs.length, 'chunks');
 
-    console.log('[SherpaASR] Result:', text.slice(0, 120));
+    const texts: string[] = [];
+    for (const wav of chunkWavs) {
+      const { samples: chunkSamples } = parseWAV(wav);
+      const stream = this.recognizer.createStream();
+      stream.acceptWaveform(SAMPLE_RATE, chunkSamples);
+      this.recognizer.decode(stream);
+      texts.push(this.recognizer.getResult(stream).text || '');
+      stream.free();
+    }
 
-    return {
-      text,
-      durationMs: performance.now() - t0,
-      language: lang || 'auto',
-      confidence: 0.85,
-    };
+    const text = joinChunkResults(texts);
+    console.log('[SherpaASR] Done,', (performance.now() - t0).toFixed(0), 'ms,', text.length, 'chars');
+    return { text, durationMs: performance.now() - t0, language: lang || 'zh', confidence: 0.85 };
   }
 
   async dispose(): Promise<void> {
-    if (this.recognizer) {
-      this.recognizer.free();
-      this.recognizer = null;
-    }
+    if (this.recognizer) { this.recognizer.free(); this.recognizer = null; }
     this.isReady = false;
   }
 }

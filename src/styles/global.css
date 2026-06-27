@@ -1272,36 +1272,48 @@ html, body, #root {
 
 /* ── Test button ───────────────────────────────────────────── */
 .nb-btn-test {
-  min-width: 48px;
-  height: 28px;
+  min-width: 44px;
+  height: 32px;
   padding: 0 10px;
   font-size: 12px;
-  border-radius: 4px;
-  border: 1.5px solid #d0d0d0;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 2px solid #000;
+  border-radius: 0;
   background: #fff;
+  color: #000;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: 2px 2px 0 #000;
+  transition: box-shadow 0.08s, transform 0.08s, background 0.08s, border-color 0.08s, color 0.08s;
   white-space: nowrap;
 }
-.nb-btn-test:hover {
-  border-color: #FF5A1F;
-  color: #FF5A1F;
+.nb-btn-test:hover:not(:disabled) {
+  background: #f9f9f9;
+}
+.nb-btn-test:active:not(:disabled) {
+  box-shadow: none;
+  transform: translate(2px, 2px);
 }
 .nb-btn-test:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 .nb-btn-test-loading {
   border-color: #FF5A1F;
   color: #FF5A1F;
+  box-shadow: 2px 2px 0 #FF5A1F;
 }
 .nb-btn-test-ok {
   border-color: #16a34a;
   color: #16a34a;
+  box-shadow: 2px 2px 0 #16a34a;
   background: #f0fdf4;
 }
 .nb-btn-test-fail {
   border-color: #e00;
   color: #e00;
+  box-shadow: 2px 2px 0 #e00;
   background: #fef2f2;
 }

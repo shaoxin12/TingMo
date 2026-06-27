@@ -64,16 +64,20 @@ function barJitter(i: number, t: number): number {
 export const FloatingWindow: React.FC = () => {
   const { state, translateMode } = useVoiceInput();
   const { t } = useI18n();
-  const { audioLevel, startCapture, stopCapture } = useAudioCapture();
+  const { audioLevel, startCapture, stopCapture, drainNewWav } = useAudioCapture();
+  const asrProvider = useSettingsStore((s) => s.asrProvider);
+  const language = useSettingsStore((s) => s.language);
   const translateTarget = useSettingsStore((s) => s.translateTarget);
   const useDictionary = useSettingsStore((s) => s.useDictionary);
   const dictionary = useSettingsStore((s) => s.dictionary);
-  const polishMode = useSettingsStore((s) => s.polishMode);
-  const customPrompt = useSettingsStore((s) => s.customPrompt);
   const selectedMicDeviceId = useSettingsStore((s) => s.selectedMicDeviceId);
 
   const sentAudioRef = useRef(false);
   const prevStateRef = useRef<typeof state>('idle');
+  const streamTextRef = useRef<string[]>([]);
+  const streamTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const streamBusyRef = useRef(false);   // guard against overlapping asrChunk calls
+  const streamClosedRef = useRef(false); // discard late-resolving promises after recognizing
   const [visible, setVisible] = useState(false);
   const levelRef = useRef(0);
   const [, setTick] = useState(0);
@@ -139,25 +143,19 @@ export const FloatingWindow: React.FC = () => {
   // ── Success → auto-dismiss (renderer-side timer) ─────────
   const successTimerRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
-    console.log('[Float] success effect, state:', state);
     if (state === 'success') {
-      console.log('[Float] scheduling dismiss in 600ms');
       successTimerRef.current = setTimeout(() => {
-        console.log('[Float] playing dismiss animation');
         playUISound('dismiss');
         if (capsuleRef.current) {
           const anim = capsuleRef.current.animate([
             { opacity: '1', transform: 'translateY(0) scale(1)' },
             { opacity: '0', transform: 'translateY(16px) scale(0.85)' },
           ], { duration: 200, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', fill: 'forwards' });
-          anim.onfinish = () => { console.log('[Float] dismiss anim done'); setVisible(false); };
-        } else {
-          console.log('[Float] capsuleRef is null, cannot animate!');
+          anim.onfinish = () => { setVisible(false); };
         }
       }, 800);
     }
     return () => {
-      console.log('[Float] success effect cleanup, clearing timer');
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
     };
   }, [state]);
@@ -174,26 +172,75 @@ export const FloatingWindow: React.FC = () => {
     if (state === 'recording') {
       startCapture(selectedMicDeviceId || undefined);
       sentAudioRef.current = false;
+      if (asrProvider === 'local') {
+        streamTextRef.current = [];
+        streamClosedRef.current = false;
+        streamBusyRef.current = false;
+        streamTimerRef.current = setInterval(async () => {
+          if (streamBusyRef.current || streamClosedRef.current) return;
+          const wav = drainNewWav();
+          if (wav && wav.byteLength > 1000) {
+            streamBusyRef.current = true;
+            try {
+              const text = await window.tingmo?.asrChunk(wav);
+              if (text && !streamClosedRef.current) {
+                streamTextRef.current.push(text);
+              }
+            } finally {
+              streamBusyRef.current = false;
+            }
+          }
+        }, 2000);
+      }
     } else if (state === 'idle') {
+      clearInterval(streamTimerRef.current);
+      streamClosedRef.current = true;
       stopCapture();
       sentAudioRef.current = false;
+      streamTextRef.current = [];
     } else if (state === 'recognizing') {
-      const result = stopCapture();
-      if (result && !sentAudioRef.current) {
-        sentAudioRef.current = true;
-        if (!hasAudioSignal(result.wav)) { window.tingmo?.cancelRecording(); return; }
-        (window.tingmo as any).transcribe(result.wav, 'auto', {
-          translate: translateMode, translateTarget,
-          dictionary: useDictionary ? dictionary : [],
-          polishMode, customPrompt,
-        });
-      } else if (!result) {
-        window.tingmo?.cancelRecording();
+      clearInterval(streamTimerRef.current);
+      streamClosedRef.current = true;
+      if (asrProvider === 'local') {
+        (async () => {
+          const lastWav = drainNewWav();
+          if (lastWav && lastWav.byteLength > 1000) {
+            const text = await window.tingmo?.asrChunk(lastWav);
+            if (text) streamTextRef.current.push(text);
+          }
+          const result = stopCapture();
+          const preAsrText = streamTextRef.current.join('').trim();
+          if ((preAsrText || (result && hasAudioSignal(result.wav))) && !sentAudioRef.current) {
+            sentAudioRef.current = true;
+            if (!preAsrText && result && !hasAudioSignal(result.wav)) {
+              window.tingmo?.cancelRecording(); return;
+            }
+            (window.tingmo as any).transcribe(result?.wav || new ArrayBuffer(0), language || 'auto', {
+              translate: translateMode, translateTarget,
+              dictionary: useDictionary ? dictionary : [],
+              preAsrText: preAsrText || undefined,
+            });
+          }
+        })();
+      } else {
+        // Cloud ASR: single full request (no streaming)
+        const result = stopCapture();
+        if (result && !sentAudioRef.current) {
+          sentAudioRef.current = true;
+          if (!hasAudioSignal(result.wav)) { window.tingmo?.cancelRecording(); return; }
+          (window.tingmo as any).transcribe(result.wav, language || 'auto', {
+            translate: translateMode, translateTarget,
+            dictionary: useDictionary ? dictionary : [],
+          });
+        } else if (!result) {
+          window.tingmo?.cancelRecording();
+        }
       }
     }
+    return () => clearInterval(streamTimerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, startCapture, stopCapture, selectedMicDeviceId,
-    translateMode, translateTarget, useDictionary, dictionary, polishMode, customPrompt]);
+	  }, [state, asrProvider, startCapture, stopCapture, drainNewWav, selectedMicDeviceId, language,
+	    translateMode, translateTarget, useDictionary, dictionary]);
 
   if (!visible) return null;
 

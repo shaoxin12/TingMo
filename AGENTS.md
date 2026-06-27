@@ -20,11 +20,10 @@ npm run electron:build # 完整构建 + electron-builder 打包
 ## 测试
 
 ```bash
-node --experimental-strip-types test/run-test.mjs  # 端到端 ASR→LLM→对比
-npm run test:unit                                   # 单元测试（hotkey-events）
+node --experimental-strip-types test/run-test.mjs
 ```
 
-放 `test/N.wav` + `test/N.md`（期望文本）即可加 e2e 用例。测试跑完整 ASR→LLM→对比链路。使用 SSE streaming + max_tokens: 1024 + 精简 PROMPT_STRUCTURED。
+放 `test/N.wav` + `test/N.md`（期望文本）即可加用例。测试跑完整 ASR→LLM→对比链路。使用 SSE streaming + max_tokens: 1024 + 精简 PROMPT_STRUCTURED。
 
 ## 架构
 
@@ -83,16 +82,10 @@ electron/
 ├── preload.ts           # window.tingmo API (IPC bridge)
 ├── hotkey.ts            # SetWindowsHookExW 键盘钩子 + waitForHotkeyRelease
 ├── hotkey-events.ts     # 按键去重、状态跟踪、Esc 检测
-├── hotkey-events.test.ts# 单元测试
 ├── text-inserter.ts     # SendInput 批量注入（INPUT 数组 + 一次 SendInput 调用）+ \n→Enter + backspaceChars
 ├── tray.ts              # 系统托盘（ASR Provider 切换，从 settings.json 读）
-├── tray-i18n.ts         # 托盘多语言
 ├── audio-ducking.ts     # 录音时静音（PowerShell COM 管道）
-├── stats-history.ts     # 统计/历史持久化
-└── logger.ts            # 日志轮转
-
-scripts/
-└── dev.mjs              # 开发启动脚本（Vite + esbuild + Electron）
+└── stats-history.ts     # 统计/历史持久化
 
 src/
 ├── App.tsx              # I18nProvider + hash 路由
@@ -214,14 +207,6 @@ model:check / model:ensure                        # 本地模型检测/下载
 - **`applyDictionary` 与 `correctText` 用户词典功能重复**：当前 `correctText` 不走词典，统一由 `applyDictionary` 处理
 - **录音快捷键设置 IPC 仅支持 `MODIFIER_VK_MAP` 中的修饰键**（右 Alt 等标准 VK），不支持自定义非修饰键
 - **`model:check` / `voice:asr-chunk` 此前因缺失 `fs` 声明 / 无 try/catch 而运行时报错**（已修复）
-- **`VK_NAME_MAP` 未定义**导致 `settings:set-hotkey` / `settings:set-translate-modifier` IPC handler 崩溃（已修复）
-- **`hotkey-events.test.ts` 导入已重命名的函数**导致单元测试无法运行（已修复）
-- **`injectAltKeyUp` 始终注入右 Alt 释放**无视已配置的热键（已修复，改为 `injectKeyUp` 使用 `currentVk`）
-- **`SendInput` 返回值被忽略**导致注入静默失败（已修复，添加日志告警）
-- **`audio-ducking.ts` 命令无超时+竞态**：Promise 可永久挂起（已修复，添加 5s 超时 + 安全访问）
-- **`clearHistory()` 同时清除统计**误导（已修复，拆分为 `clearHistory()` / `clearAllStats()`）
-- **`loadRecordMode()` / `loadMuteOnRecord()` 重复解析 settings.json**（已修复，合并为 `loadAppSettings()`）
-- **`settings:save-app-settings` 静默吞错误**（已修复，`throw err` 传播给渲染进程）
 
 ## TODO
 
@@ -234,6 +219,3 @@ model:check / model:ensure                        # 本地模型检测/下载
 - [ ] 流式 ASR 接入 `audio-chunker.ts` 模块（消除 main.ts 中重复的 inline chunker）
 - [ ] VAD 回调接入翻译/录音自动停止流程
 - [ ] Volcano 三套不同端点统一（asr-volcano.ts / connection-test.ts / llm-providers.ts）
-- [ ] Vite dev 脚本使用本地 Vite/Electron 二进制而非 `npx`（避免全局版本冲突）
-- [ ] 提取共享 tsconfig.base.json 减少配置重复
-- [ ] 配置 ESLint + Prettier + Git hooks + CI

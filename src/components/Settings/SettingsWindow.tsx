@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSettingsStore, TranslateLang, UILanguage } from '../../store/settings';
 import { useI18n } from '../../i18n/context';
-import { LLM_PROVIDERS, ASR_CLOUD_PROVIDERS, getLLMModels, getASRModels } from '../../services/llm-providers';
+import { LLM_PROVIDERS, ASR_CLOUD_PROVIDERS, getLLMModels, getASRModels, getModelLabel } from '../../services/llm-providers';
 import { HotkeyRecorder } from './HotkeyRecorder';
 import { NbSelect } from './NbSelect';
 import { HomePanel } from './HomePanel';
@@ -225,7 +225,7 @@ export const SettingsWindow: React.FC = () => {
                     <div className="nb-row">
                       <span className="nb-label">{t('settings.model')}</span>
                       <NbSelect value={asrCloudModel}
-                        options={getASRModels(asrCloudProvider).map(m => ({ value: m, label: m }))}
+                        options={getASRModels(asrCloudProvider).map(m => ({ value: m, label: getModelLabel(m) }))}
                         onChange={(v) => setAsrCloudModel(v)} />
                     </div>
                     <div className="nb-hr" />
@@ -306,7 +306,7 @@ export const SettingsWindow: React.FC = () => {
                     <div className="nb-row">
                       <span className="nb-label">{t('settings.model')}</span>
                       <NbSelect value={llmModel}
-                        options={getLLMModels(llmProvider).map(m => ({ value: m, label: m }))}
+                        options={getLLMModels(llmProvider).map(m => ({ value: m, label: getModelLabel(m) }))}
                         onChange={(v) => setLlmModel(v)} />
                     </div>
                     <div className="nb-hr" />
