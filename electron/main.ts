@@ -157,6 +157,13 @@ async function initRecognition(): Promise<void> {
   try {
     const fs = require('fs');
 
+    // Dispose old provider before re-creating (prevents resource leak)
+    if (recognitionProvider && typeof recognitionProvider.dispose === 'function') {
+      try { await recognitionProvider.dispose(); } catch { /* ignore */ }
+    }
+    recognitionProvider = null;
+    recognitionReady = false;
+
     // Read ASR settings + key from settings.json
     const appSettings = readJSON<any>(getDataPath('settings.json'), {});
     const provider: 'local' | 'cloud' = appSettings.asrProvider || 'local';
@@ -1196,7 +1203,13 @@ if (app) {
     await initRecognition();
     console.log('[Main] Re-init complete. recReady:', recognitionReady);
   });
-  startHotkey();
+
+  // Restore saved hotkey from settings, or default to VK_RMENU (Right Alt)
+  const savedHotkeyName = readJSON<any>(getDataPath('settings.json'), {}).hotkey || '';
+  const savedVk = savedHotkeyName ? VK_NAME_MAP[savedHotkeyName] : undefined;
+  recordingHotkeyVK = savedVk || VK_RMENU;
+  startHotkey(recordingHotkeyVK);
+  console.log('[Main] Hotkey initialized:', savedHotkeyName || '右 Alt', 'VK =', recordingHotkeyVK);
 
   // Show onboarding on first launch
   const settingsPath = getDataPath('settings.json');

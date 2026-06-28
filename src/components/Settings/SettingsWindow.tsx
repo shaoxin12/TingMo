@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSettingsStore, TranslateLang, UILanguage } from '../../store/settings';
 import { useI18n } from '../../i18n/context';
 import { LLM_PROVIDERS, ASR_CLOUD_PROVIDERS, getLLMModels, getASRModels, getModelLabel } from '../../services/llm-providers';
@@ -102,23 +102,33 @@ export const SettingsWindow: React.FC = () => {
     }
   }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
-  // Save all LLM/ASR/Key config to settings.json, then re-init providers
-  // Skip first render — only save on actual user changes, not mount defaults
+  // Skip first render on all effects
   const didMountRef = useRef(false);
+  useEffect(() => { didMountRef.current = true; }, []);
+
+  // Debounced save + reinit: ASR changes → reinitRecognition only
   useEffect(() => {
-    if (!didMountRef.current) { didMountRef.current = true; return; }
-    (async () => {
+    if (!didMountRef.current) return;
+    const timer = setTimeout(async () => {
       await window.tingmo?.saveAppSettings({
-        refineEnabled,
-        llmProvider, llmModel, llmBaseUrl, llmApiKey,
         asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey,
       });
-      await window.tingmo?.initRefinement();
       await window.tingmo?.reinitRecognition();
-    })();
-  }, [refineEnabled,
-      llmProvider, llmModel, llmBaseUrl, llmApiKey,
-      asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey]);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey]);
+
+  // Debounced save + reinit: LLM changes → initRefinement only
+  useEffect(() => {
+    if (!didMountRef.current) return;
+    const timer = setTimeout(async () => {
+      await window.tingmo?.saveAppSettings({
+        refineEnabled, llmProvider, llmModel, llmBaseUrl, llmApiKey,
+      });
+      await window.tingmo?.initRefinement();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [refineEnabled, llmProvider, llmModel, llmBaseUrl, llmApiKey]);
 
   useEffect(() => {
     window.tingmo?.setUiLanguage(uiLanguage);

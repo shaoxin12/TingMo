@@ -74,9 +74,10 @@ function tintIcon(icon: NativeImage, r: number, g: number, b: number): NativeIma
       const dy = py - size + TINT_RADIUS;
       if (dx * dx + dy * dy > TINT_THRESHOLD_SQ) continue;
       const idx = (py * size + px) * 4;
-      buf[idx] = r;
-      buf[idx + 1] = g;
-      buf[idx + 2] = b;
+      // Windows toBitmap() returns BGRA, not RGBA
+      buf[idx] = b;     // Blue
+      buf[idx + 1] = g; // Green
+      buf[idx + 2] = r; // Red
       buf[idx + 3] = 255;
     }
   }

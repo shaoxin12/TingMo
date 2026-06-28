@@ -35,14 +35,19 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
     e.stopPropagation();
     keysRef.current.add(e.code);
 
-    const parts: string[] = [];
-    if (e.ctrlKey) parts.push('Ctrl');
-    if (e.altKey) parts.push('Alt');
-    if (e.shiftKey) parts.push('Shift');
-    if (e.metaKey) parts.push('Win');
-
     const i18nKey = keyCodeToI18n(e.code);
+
+    // Check if the key pressed IS a modifier key (has i18n translation)
+    const isModifierKey = i18nKey !== '';
+
+    const parts: string[] = [];
+    if (e.ctrlKey && !isModifierKey) parts.push('Ctrl');
+    if (e.altKey && !isModifierKey) parts.push('Alt');
+    if (e.shiftKey && !isModifierKey) parts.push('Shift');
+    if (e.metaKey && !isModifierKey) parts.push('Win');
+
     if (i18nKey) {
+      // Single modifier key (e.g. Right Alt) — use the translated name directly
       parts.push(t(i18nKey));
     } else if (!['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight',
       'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight'].includes(e.code)) {

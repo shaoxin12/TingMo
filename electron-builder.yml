@@ -8,6 +8,7 @@ files:
   - dist
   - dist-electron
   - package.json
+  - assets
 asar: true
 asarUnpack:
   - node_modules/onnxruntime-node/**

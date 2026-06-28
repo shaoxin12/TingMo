@@ -15,21 +15,7 @@ export class FunASRCloudProvider implements IRecognitionProvider {
       this.isReady = false;
       return false;
     }
-    try {
-      const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), 3000);
-      const res = await fetch(`${this.baseUrl}/api/status`, {
-        method: 'GET',
-        signal: ctrl.signal,
-      });
-      if (res.ok) {
-        this.isReady = true;
-        console.log('[FunASR-Cloud] Server reachable at', this.baseUrl);
-        return true;
-      }
-    } catch {
-      console.log('[FunASR-Cloud] Server unreachable, will try on transcribe');
-    }
+    // Ready immediately — actual connection is tested via connection-test.ts
     this.isReady = true;
     console.log('[FunASR-Cloud] Ready, model:', this.model);
     return true;
