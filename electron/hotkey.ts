@@ -100,11 +100,6 @@ export function startHotkey(vkCode?: number): void {
         return CallNextHookEx(hookHandle, nCode, wParam, lParam);
       }
 
-      // Debug: log every significant key event
-      if (event && (event.vkCode === currentVk || event.vkCode === VK_RMENU || event.vkCode === VK_ESCAPE)) {
-        console.log('[Hotkey] vkCode=' + event.vkCode + ' targetVk=' + currentVk + ' wasPressed=' + wasPressed + ' paused=' + hookPaused);
-      }
-
       // Hotkey matching
       const action = getHotkeyEventAction({
         nCode,

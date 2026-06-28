@@ -22,7 +22,7 @@ Electron 33 + React 18 + TypeScript + Vite | esbuild 编译主进程 | koffi FFI
 ## 运行
 
 ```bash
-npm run dev            # Vite dev server → esbuild → Electron
+npm run dev            # Vite + esbuild + Electron（支持主进程热更新）
 npm run build:main     # 仅构建主进程和 preload
 npm run build          # 完整构建
 npm run electron:build # 完整构建 + electron-builder 打包
@@ -233,6 +233,21 @@ model:check / model:ensure                        # 本地模型检测/下载
 - **`clearHistory()` 同时清除统计**误导（已修复，拆分为 `clearHistory()` / `clearAllStats()`）
 - **`loadRecordMode()` / `loadMuteOnRecord()` 重复解析 settings.json**（已修复，合并为 `loadAppSettings()`）
 - **`settings:save-app-settings` 静默吞错误**（已修复，`throw err` 传播给渲染进程）
+- **`VK_NAME_MAP` 未定义**导致 `settings:set-hotkey` / `settings:set-translate-modifier` IPC handler 崩溃（已修复）
+- **`hotkey-events.test.ts` 导入已重命名的函数**导致单元测试无法运行（已修复）
+- **`injectAltKeyUp` 始终注入右 Alt 释放**无视已配置的热键（已修复，改为 `injectKeyUp` 使用 `currentVk`）
+- **`SendInput` 返回值被忽略**导致注入静默失败（已修复，添加日志告警）
+- **`audio-ducking.ts` 命令无超时+竞态**：Promise 可永久挂起（已修复，添加 5s 超时 + 安全访问）
+- **`clearHistory()` 同时清除统计**误导（已修复，拆分为 `clearHistory()` / `clearAllStats()`）
+- **`loadRecordMode()` / `loadMuteOnRecord()` 重复解析 settings.json**（已修复，合并为 `loadAppSettings()`）
+- **`settings:save-app-settings` 静默吞错误**（已修复，`throw err` 传播给渲染进程）
+- **`model:check` 不搜索 tokens.txt 子目录**导致模型存在但提示未下载（已修复）
+- **托盘图标打包后空白**：`electron-builder.yml` 添加 `assets/` 目录（已修复）
+- **`tintIcon` BGRA/RGBA 通道错误**导致图标颜色异常（已修复）
+- **HotkeyRecorder 闭包陷阱**：`handleKeyUp` 读到空 `display` 值，快捷键设置不生效（已修复，改用 `useRef`）
+- **全局键盘钩子拦截设置页按键**：录制快捷键时钩子先消费事件，Alt 等不到渲染进程（已修复，添加暂停/恢复机制）
+- **切换 ASR 卡顿**：`SherpaASRProvider` 同步 C++ 模型加载阻塞主进程；切换时不必要的 `initRefinement` 调用（已修复：缓存识别器、分离 ASR/LLM 依赖、200ms 防抖）
+- **`FunASRCloudProvider.initialize()` 无意义网络请求**：超时 3s 探测不存在的 `/api/status` 端点（已修复，直接返回）
 
 ## TODO
 
@@ -240,11 +255,8 @@ model:check / model:ensure                        # 本地模型检测/下载
 - [ ] 阿里云 ASR 端点迁移到专用 ASR
 - [ ] sherpa-onnx DirectML GPU 推理加速本地 ASR
 - [ ] 云端 ASR 流式（火山 WS 单连接已可行）
-- [ ] Kimi/智谱/MiniMax 模型列表更新
-- [ ] 本地小模型润色（0.6B 速度好但中文质量不足，需 3B+ 或专用中文纠错模型如 CeluneNorm 中文版）
-- [ ] 流式 ASR 接入 `audio-chunker.ts` 模块（消除 main.ts 中重复的 inline chunker）
+- [ ] 本地小模型润色
+- [ ] 流式 ASR 接入 `audio-chunker.ts` 模块
 - [ ] VAD 回调接入翻译/录音自动停止流程
-- [ ] Volcano 三套不同端点统一（asr-volcano.ts / connection-test.ts / llm-providers.ts）
-- [ ] Vite dev 脚本使用本地 Vite/Electron 二进制而非 `npx`（避免全局版本冲突）
 - [ ] 提取共享 tsconfig.base.json 减少配置重复
 - [ ] 配置 ESLint + Prettier + Git hooks + CI

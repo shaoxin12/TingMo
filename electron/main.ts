@@ -708,19 +708,13 @@ if (app) {
     console.log('[Main] Translate modifier set to', keyName, 'VK =', translateModifierVK);
   });
 
-  ipcMain.handle('settings:set-hotkey', async (_event, hotkeyName: string) => {
-    console.log('[Main] set-hotkey called with:', JSON.stringify(hotkeyName));
+  ipcMain.handle('settings:set-hotkey', (_event, hotkeyName: string) => {
     const vk = VK_NAME_MAP[hotkeyName];
-    console.log('[Main] VK lookup result:', vk, 'currentVk:', recordingHotkeyVK);
     if (vk && vk !== recordingHotkeyVK) {
       recordingHotkeyVK = vk;
-      console.log('[Main] HOTKEY CHANGED to', hotkeyName, 'VK =', vk, '| calling stopHotkey...');
+      console.log('[Main] Recording hotkey changed to', hotkeyName, 'VK =', vk);
       stopHotkey();
-      console.log('[Main] stopHotkey done, calling startHotkey...');
       startHotkey(vk);
-      console.log('[Main] startHotkey done, new hook active');
-    } else if (!vk) {
-      console.log('[Main] WARNING: VK_NAME_MAP has no entry for:', JSON.stringify(hotkeyName));
     }
   });
 
