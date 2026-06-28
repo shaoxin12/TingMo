@@ -1,7 +1,15 @@
 import { spawn } from 'child_process';
 import { createServer } from 'net';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '..');
 
 const VITE_PORT = 5173;
+let electronProcess = null;
+let viteProcess = null;
 
 function waitForPort(port, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
@@ -9,12 +17,10 @@ function waitForPort(port, timeoutMs = 30000) {
     const tryConnect = () => {
       const socket = createServer();
       socket.on('error', () => {
-        // Port is in use = Vite is ready
         socket.close();
         resolve();
       });
       socket.listen(port, '127.0.0.1', () => {
-        // Port is free = Vite not ready yet
         socket.close();
         if (Date.now() - start > timeoutMs) {
           reject(new Error(`Timeout waiting for port ${port}`));
@@ -27,45 +33,102 @@ function waitForPort(port, timeoutMs = 30000) {
   });
 }
 
+function buildMain() {
+  return new Promise((resolve, reject) => {
+    console.log('[dev] Building main process...');
+    const build = spawn('npm', ['run', 'build:main'], {
+      stdio: 'inherit',
+      shell: true,
+      cwd: ROOT,
+    });
+    build.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`build:main exited with code ${code}`));
+    });
+    build.on('error', reject);
+  });
+}
+
+function startElectron() {
+  if (electronProcess) {
+    console.log('[dev] Killing old Electron...');
+    electronProcess.kill();
+    electronProcess = null;
+  }
+
+  console.log('[dev] Starting Electron...');
+  electronProcess = spawn('npx', ['electron', '.'], {
+    stdio: 'inherit',
+    shell: true,
+    cwd: ROOT,
+    env: { ...process.env, NODE_ENV: 'development' },
+  });
+
+  electronProcess.on('close', (code) => {
+    console.log(`[dev] Electron exited (code ${code})`);
+    electronProcess = null;
+    // Don't exit — wait for more file changes or manual Ctrl+C
+  });
+}
+
+// Start Vite
 console.log('[dev] Starting Vite...');
-const vite = spawn('npx', ['vite', '--port', String(VITE_PORT)], {
+viteProcess = spawn('npx', ['vite', '--port', String(VITE_PORT)], {
   stdio: 'inherit',
   shell: true,
+  cwd: ROOT,
 });
 
-vite.on('error', (err) => {
+viteProcess.on('error', (err) => {
   console.error('[dev] Failed to start Vite:', err.message);
   process.exit(1);
+});
+
+viteProcess.on('close', (code) => {
+  console.log(`[dev] Vite exited (code ${code}), stopping...`);
+  if (electronProcess) electronProcess.kill();
+  process.exit(0);
 });
 
 try {
   console.log('[dev] Waiting for Vite on port', VITE_PORT, '...');
   await waitForPort(VITE_PORT);
-  console.log('[dev] Vite ready, starting Electron...');
+  console.log('[dev] Vite ready');
 
-  // Build main process
-  const build = spawn('npm', ['run', 'build:main'], { stdio: 'inherit', shell: true });
-  await new Promise((resolve, reject) => {
-    build.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`build:main exited with code ${code}`));
+  // Initial build + launch
+  await buildMain();
+  startElectron();
+
+  // Watch electron/ directory for changes to hot-restart
+  const electronDir = path.join(ROOT, 'electron');
+  console.log('[dev] Watching', electronDir, 'for changes...');
+
+  const watchedFiles = new Set();
+  fs.watch(electronDir, { recursive: true }, (eventType, filename) => {
+    if (!filename || !filename.endsWith('.ts')) return;
+    // Debounce: skip if we just handled this file
+    if (watchedFiles.has(filename)) return;
+    watchedFiles.add(filename);
+    setTimeout(() => watchedFiles.delete(filename), 500);
+
+    console.log(`[dev] Change detected: ${filename}`);
+    buildMain().then(() => {
+      startElectron();
+    }).catch((err) => {
+      console.error('[dev] Build failed:', err.message);
     });
   });
 
-  // Start Electron
-  const electron = spawn('npx', ['electron', '.'], {
-    stdio: 'inherit',
-    shell: true,
-    env: { ...process.env, NODE_ENV: 'development' },
-  });
-
-  electron.on('close', () => {
-    console.log('[dev] Electron closed, stopping...');
-    vite.kill();
+  // Handle Ctrl+C gracefully
+  process.on('SIGINT', () => {
+    console.log('[dev] Shutting down...');
+    if (electronProcess) electronProcess.kill();
+    if (viteProcess) viteProcess.kill();
     process.exit(0);
   });
+
 } catch (err) {
   console.error('[dev]', err.message);
-  vite.kill();
+  if (viteProcess) viteProcess.kill();
   process.exit(1);
 }
