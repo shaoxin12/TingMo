@@ -60,40 +60,42 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
     setDisplay(newDisplay);
   }, [isRecording, t]);
 
-  const handleKeyUp = useCallback((e: KeyboardEvent) => {
+  const handleKeyUp = useCallback(async (e: KeyboardEvent) => {
     if (!isRecording) return;
     e.preventDefault();
     keysRef.current.delete(e.code);
     if (keysRef.current.size === 0 && displayRef.current) {
       onHotkeyChange(displayRef.current);
+      await window.tingmo?.setHotkeyPaused(false);
       setIsRecording(false);
     }
   }, [isRecording, onHotkeyChange]);
 
   useEffect(() => {
     if (isRecording) {
-      // Pause the global hotkey hook so our key events reach the renderer
-      window.tingmo?.setHotkeyPaused(true);
       window.addEventListener('keydown', handleKeyDown, true);
       window.addEventListener('keyup', handleKeyUp, true);
       return () => {
-        window.tingmo?.setHotkeyPaused(false);
         window.removeEventListener('keydown', handleKeyDown, true);
         window.removeEventListener('keyup', handleKeyUp, true);
       };
     }
   }, [isRecording, handleKeyDown, handleKeyUp]);
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (!isRecording) {
+      // Pause global hotkey hook BEFORE starting to record, so Alt key
+      // events reach the renderer instead of being consumed by the hook
+      await window.tingmo?.setHotkeyPaused(true);
       setIsRecording(true);
       setDisplay('');
       keysRef.current.clear();
     }
   };
 
-  const handleReset = (e: React.MouseEvent) => {
+  const handleReset = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    await window.tingmo?.setHotkeyPaused(false);
     onReset();
   };
 
