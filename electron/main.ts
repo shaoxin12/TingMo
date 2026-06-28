@@ -739,11 +739,27 @@ if (app) {
   });
 
   // ── Model download ─────────────────────────────────────
-  ipcMain.handle('model:check', () => {
-    const modelPath = join(app.getPath('userData'), 'models', 'funasr', 'model.int8.onnx');
-    const tokensPath = join(app.getPath('userData'), 'models', 'funasr', 'tokens.txt');
+  function findTokensFile(modelDir: string): string | null {
     const fs = require('fs');
-    const exists = fs.existsSync(modelPath) && fs.existsSync(tokensPath);
+    const directPath = join(modelDir, 'tokens.txt');
+    if (fs.existsSync(directPath)) return directPath;
+    // Search subdirectories (model may have been extracted into a subfolder from tar archive)
+    for (const entry of fs.readdirSync(modelDir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        const p = join(modelDir, entry.name, 'tokens.txt');
+        if (fs.existsSync(p)) return p;
+      }
+    }
+    return null;
+  }
+
+  ipcMain.handle('model:check', () => {
+    const modelDir = join(app.getPath('userData'), 'models', 'funasr');
+    const modelPath = join(modelDir, 'model.int8.onnx');
+    const fs = require('fs');
+    const modelExists = fs.existsSync(modelPath);
+    const tokensPath = findTokensFile(modelDir);
+    const exists = modelExists && tokensPath !== null;
     return { exists, path: exists ? modelPath : null };
   });
 
