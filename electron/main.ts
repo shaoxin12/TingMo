@@ -209,8 +209,23 @@ async function initRecognition(): Promise<void> {
         }
         console.log('[Main] Loading SenseVoice model via sherpa-onnx from:', userModelDir);
         recognitionProvider = new SherpaASRProvider(userModelDir);
-        recognitionReady = await recognitionProvider.initialize();
-        console.log('[Main] Recognition ready (local):', recognitionReady);
+
+        // Defer the blocking C++ onnx model load so the UI doesn't freeze.
+        // createOfflineRecognizer() loads ~200MB synchronously on the main thread.
+        // We return false initially, then set ready when loading completes.
+        recognitionReady = false;
+        setTimeout(async () => {
+          try {
+            const ready = await recognitionProvider.initialize();
+            recognitionReady = ready;
+            console.log('[Main] Recognition ready (local):', recognitionReady);
+            sendToRenderer('voice:state-change', { state: recognitionReady ? 'idle' : 'error' });
+          } catch (err: any) {
+            console.error('[Main] Local ASR init failed:', err.message);
+            recognitionReady = false;
+          }
+        }, 50);
+        console.log('[Main] Local ASR loading deferred (model loading in background)');
       } else {
         // Model not found — start background download, don't block app startup
         console.log('[Main] Model not found, starting background download...');
