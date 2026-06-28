@@ -2,7 +2,7 @@
 import { autoUpdater } from 'electron-updater';
 import { join } from 'path';
 import { createTray, updateTrayState, updateTrayLanguage, setOnAsrProviderChange } from './tray';
-import { startHotkey, stopHotkey, setHotkeyCallback, setHotkeyReleaseCallback, setEscCallback, waitForHotkeyRelease } from './hotkey';
+import { startHotkey, stopHotkey, setHotkeyCallback, setHotkeyReleaseCallback, setEscCallback, waitForHotkeyRelease, setHookPaused } from './hotkey';
 import { VK_RMENU } from './hotkey-events';
 import { injectText, backspaceChars } from './text-inserter';
 import { ensureModel } from '../src/services/model-downloader';
@@ -720,6 +720,12 @@ if (app) {
     } else if (!vk) {
       console.log('[Main] WARNING: VK_NAME_MAP has no entry for:', JSON.stringify(hotkeyName));
     }
+  });
+
+  // Pause/resume hotkey hook — used when recording a new hotkey in settings
+  ipcMain.handle('hotkey:pause', (_event, paused: boolean) => {
+    setHookPaused(paused);
+    console.log('[Main] Hotkey hook paused:', paused);
   });
 
   // System locale detection

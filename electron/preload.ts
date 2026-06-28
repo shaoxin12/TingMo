@@ -61,6 +61,7 @@ const api = {
   // Hotkey management
   setTranslateModifier: (keyName: string) => ipcRenderer.invoke('settings:set-translate-modifier', keyName),
   setRecordingHotkey: (keyName: string) => ipcRenderer.invoke('settings:set-hotkey', keyName),
+  setHotkeyPaused: (paused: boolean) => ipcRenderer.invoke('hotkey:pause', paused),
   onTranslateMode: (callback: (data: { enabled: boolean }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { enabled: boolean }) => callback(data);
     ipcRenderer.on('voice:translate-mode', handler);

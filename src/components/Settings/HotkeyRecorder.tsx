@@ -72,9 +72,12 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
 
   useEffect(() => {
     if (isRecording) {
+      // Pause the global hotkey hook so our key events reach the renderer
+      window.tingmo?.setHotkeyPaused(true);
       window.addEventListener('keydown', handleKeyDown, true);
       window.addEventListener('keyup', handleKeyUp, true);
       return () => {
+        window.tingmo?.setHotkeyPaused(false);
         window.removeEventListener('keydown', handleKeyDown, true);
         window.removeEventListener('keyup', handleKeyUp, true);
       };

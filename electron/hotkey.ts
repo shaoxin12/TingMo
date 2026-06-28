@@ -58,6 +58,11 @@ let hookHandle: unknown = null;
 let hookProc: unknown = null;
 let wasPressed = false;
 let wasEscPressed = false;
+let hookPaused = false;
+
+export function setHookPaused(paused: boolean): void {
+  hookPaused = paused;
+}
 
 export function setHotkeyCallback(cb: () => void): void {
   pressCallback = cb;
@@ -81,6 +86,11 @@ export function startHotkey(vkCode?: number): void {
 
   hookProc = koffi.register((nCode: number, wParam: number, lParam: unknown) => {
     try {
+      // When paused (settings page recording a new hotkey), pass all events through
+      if (hookPaused) {
+        return CallNextHookEx(hookHandle, nCode, wParam, lParam);
+      }
+
       const event = nCode === HC_ACTION
         ? koffi.decode(lParam, KBDLLHOOKSTRUCT)
         : null;
