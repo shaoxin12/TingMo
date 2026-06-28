@@ -65,7 +65,12 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
     e.preventDefault();
     keysRef.current.delete(e.code);
     if (keysRef.current.size === 0 && displayRef.current) {
-      onHotkeyChange(displayRef.current);
+      const key = displayRef.current;
+      // 1. Change the hotkey in main process (await it to complete)
+      await window.tingmo?.setRecordingHotkey(key);
+      // 2. Notify parent to update Zustand state
+      onHotkeyChange(key);
+      // 3. THEN resume the hook (hotkey already changed, safe to resume)
       await window.tingmo?.setHotkeyPaused(false);
       setIsRecording(false);
     }
