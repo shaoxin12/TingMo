@@ -27,6 +27,7 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
   const { t } = useI18n();
   const [isRecording, setIsRecording] = useState(false);
   const [display, setDisplay] = useState('');
+  const displayRef = useRef('');
   const keysRef = useRef<Set<string>>(new Set());
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -54,18 +55,20 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
       parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
     }
 
-    setDisplay(parts.join(' + '));
+    const newDisplay = parts.join(' + ');
+    displayRef.current = newDisplay;
+    setDisplay(newDisplay);
   }, [isRecording, t]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if (!isRecording) return;
     e.preventDefault();
     keysRef.current.delete(e.code);
-    if (keysRef.current.size === 0 && display) {
-      onHotkeyChange(display);
+    if (keysRef.current.size === 0 && displayRef.current) {
+      onHotkeyChange(displayRef.current);
       setIsRecording(false);
     }
-  }, [isRecording, display, onHotkeyChange]);
+  }, [isRecording, onHotkeyChange]);
 
   useEffect(() => {
     if (isRecording) {

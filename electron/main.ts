@@ -129,6 +129,10 @@ function clearAutoDismiss(): void {
 let recognitionProvider: any = null;
 let recognitionReady = false;
 
+// Cached local recognizer — initialized once, stays alive across provider switches
+let cachedLocalProvider: any = null;
+let cachedLocalReady = false;
+
 // Cached fallback recognizer — avoids model reload on every call
 let fallbackRecognizer: any = null;
 let fallbackRecognizerReady = false;
@@ -157,8 +161,9 @@ async function initRecognition(): Promise<void> {
   try {
     const fs = require('fs');
 
-    // Dispose old provider before re-creating (prevents resource leak)
-    if (recognitionProvider && typeof recognitionProvider.dispose === 'function') {
+    // Dispose old non-cached provider before re-creating
+    if (recognitionProvider && recognitionProvider !== cachedLocalProvider &&
+        typeof recognitionProvider.dispose === 'function') {
       try { await recognitionProvider.dispose(); } catch { /* ignore */ }
     }
     recognitionProvider = null;
@@ -199,42 +204,46 @@ async function initRecognition(): Promise<void> {
     }
     if (provider === 'local') {
 
-      const userModelDir = join(app.getPath('userData'), 'models', 'funasr');
-      const userModel = join(userModelDir, 'model.int8.onnx');
-      const userTokens = join(userModelDir, 'tokens.txt');
-
-      if (fs.existsSync(userModel)) {
-        if (!fs.existsSync(userTokens)) {
-          console.log('[Main] tokens.txt missing, will be re-downloaded');
-        }
-        console.log('[Main] Loading SenseVoice model via sherpa-onnx from:', userModelDir);
-        recognitionProvider = new SherpaASRProvider(userModelDir);
-
-        // Defer the blocking C++ onnx model load so the UI doesn't freeze.
-        // createOfflineRecognizer() loads ~200MB synchronously on the main thread.
-        // We return false initially, then set ready when loading completes.
-        recognitionReady = false;
-        setTimeout(async () => {
-          try {
-            const ready = await recognitionProvider.initialize();
-            recognitionReady = ready;
-            console.log('[Main] Recognition ready (local):', recognitionReady);
-            sendToRenderer('voice:state-change', { state: recognitionReady ? 'idle' : 'error' });
-          } catch (err: any) {
-            console.error('[Main] Local ASR init failed:', err.message);
-            recognitionReady = false;
-          }
-        }, 50);
-        console.log('[Main] Local ASR loading deferred (model loading in background)');
+      // Use cached provider if already initialized (avoids blocking re-load)
+      if (cachedLocalReady && cachedLocalProvider) {
+        recognitionProvider = cachedLocalProvider;
+        recognitionReady = true;
+        console.log('[Main] Using cached local recognizer');
       } else {
-        // Model not found — start background download, don't block app startup
-        console.log('[Main] Model not found, starting background download...');
-        downloadModel(join(app.getPath('userData'), 'models')).then(() => {
-          console.log('[Main] Background model download complete');
-        }).catch((err: any) => {
-          console.error('[Main] Background model download failed:', err.message);
-        });
-        recognitionReady = false;
+        const userModelDir = join(app.getPath('userData'), 'models', 'funasr');
+        const userModel = join(userModelDir, 'model.int8.onnx');
+        const userTokens = join(userModelDir, 'tokens.txt');
+
+        if (fs.existsSync(userModel)) {
+          console.log('[Main] Creating local recognizer from:', userModelDir);
+          const provider = new SherpaASRProvider(userModelDir);
+
+          // Defer the blocking C++ model load so the UI doesn't freeze
+          recognitionReady = false;
+          setTimeout(async () => {
+            try {
+              const ready = await provider.initialize();
+              cachedLocalProvider = provider;
+              cachedLocalReady = ready;
+              recognitionProvider = cachedLocalProvider;
+              recognitionReady = ready;
+              console.log('[Main] Local ASR ready:', ready);
+            } catch (err: any) {
+              console.error('[Main] Local ASR init failed:', err.message);
+              recognitionReady = false;
+            }
+          }, 50);
+          console.log('[Main] Local ASR loading deferred');
+        } else {
+          // Model not found — start background download, don't block app startup
+          console.log('[Main] Model not found, starting background download...');
+          downloadModel(join(app.getPath('userData'), 'models')).then(() => {
+            console.log('[Main] Background model download complete');
+          }).catch((err: any) => {
+            console.error('[Main] Background model download failed:', err.message);
+          });
+          recognitionReady = false;
+        }
       }
     }
   } catch (err: any) {
@@ -700,12 +709,16 @@ if (app) {
   });
 
   ipcMain.handle('settings:set-hotkey', (_event, hotkeyName: string) => {
+    console.log('[Main] set-hotkey called with:', JSON.stringify(hotkeyName));
     const vk = VK_NAME_MAP[hotkeyName];
+    console.log('[Main] VK lookup result:', vk, 'currentVk:', recordingHotkeyVK);
     if (vk && vk !== recordingHotkeyVK) {
       recordingHotkeyVK = vk;
       console.log('[Main] Recording hotkey changed to', hotkeyName, 'VK =', vk);
       stopHotkey();
       startHotkey(vk);
+    } else if (!vk) {
+      console.log('[Main] WARNING: VK_NAME_MAP has no entry for:', JSON.stringify(hotkeyName));
     }
   });
 
