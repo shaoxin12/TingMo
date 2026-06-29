@@ -33,7 +33,7 @@ Unlike mainstream AI input methods, TingMo doesn't lock you into a single vendor
 - **Translation**: Dedicated hotkey triggers translation mode. 7 target languages: EN, ZH, JA, KO, FR, DE, ES
 - **Dictionary**: Custom terminology with fuzzy pinyin matching and Levenshtein distance correction for ASR homophone errors
 - **5-Language UI**: 简体中文 / 繁體中文 / English / 日本語 / 한국어
-- **Auto-Mute**: Automatically lowers system volume while recording to prevent audio feedback
+- **Auto-Mute**: Automatically mutes system audio while recording to prevent microphone feedback
 
 ## Installation
 
