@@ -50,10 +50,6 @@ On first launch you'll be guided through engine selection:
 | Voice Input | Right Alt (press: press to start, press again to stop) |
 | Translate | Right Shift + Right Alt |
 
-> Hotkeys and recording mode (press/hold) are customizable in Settings.
-
-Right-click the tray icon for Settings, where you can configure ASR engine, LLM polish, dictionary, hotkeys, and more.
-
 ## Development
 
 ```bash
