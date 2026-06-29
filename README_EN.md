@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Press a hotkey and speak — your words are typed at the cursor in any app.</strong>
+  <strong>A Windows desktop voice input app. Press a hotkey, speak, and your words are typed directly at the cursor — in any application.</strong>
 </p>
 
 <p align="center">

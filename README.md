@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>在任意应用中，按下快捷键说话，语音自动转为文字注入光标。</strong>
+  <strong>一款 Windows 桌面语音输入法。在任意应用中，按下快捷键说话，语音自动转为文字注入光标。</strong>
 </p>
 
 <p align="center">
