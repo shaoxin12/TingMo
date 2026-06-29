@@ -50,7 +50,7 @@ export const TrayPopup: React.FC = () => {
     <div className="tray-popup">
       <button className={`tray-popup-row ${asrProvider === 'local' ? 'active' : ''}`}
         onClick={() => handleAsrProvider('local')}>
-        <span className="tray-popup-dot">{asrProvider === 'local' ? '●' : '○'}</span>
+        <span className="tray-popup-dot" />
         {t('tray.voiceMode.local')}
       </button>
       <button className={`tray-popup-row ${asrProvider === 'cloud' ? 'active' : ''}`}

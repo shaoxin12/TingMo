@@ -1303,11 +1303,29 @@ html, body, #root {
   font-weight: 600;
 }
 
-.tray-popup-dot,
+.tray-popup-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #ccc;
+  background: transparent;
+  flex-shrink: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.tray-popup-row.active .tray-popup-dot {
+  border-color: #FF5A1F;
+  background: #FF5A1F;
+}
+
 .tray-popup-check {
-  width: 14px;
-  font-size: 8px;
-  text-align: center;
+  width: 18px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
   color: #FF5A1F;
   flex-shrink: 0;
 }
