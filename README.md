@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>一款 Windows 桌面语音输入法。在任意应用中，按下快捷键说话，语音自动转为文字注入光标。</strong>
+  <strong>一款 Windows 桌面语音输入法，按下快捷键说话，语音自动转为文字注入光标。</strong>
 </p>
 
 <p align="center">
@@ -20,42 +20,39 @@
 
 ---
 
-支持本地离线与云端双引擎识别，内置 AI 润色、词典纠错和翻译功能。
+## 这是什么
 
-## 特性
+听墨是一款 Windows 桌面语音输入工具。在任意应用（聊天、文档、邮件、浏览器）中，按下快捷键开始说话，松开后语音自动识别并注入光标位置——不需要切换窗口，不需要手动粘贴。
 
-- **双引擎识别** — 本地 SenseVoiceSmall（完全离线，230MB） + 云端 ASR（火山引擎 / 阿里云 / OpenAI Whisper）
-- **AI 润色** — 口语去冗余 + 自动标点分段 + 三档可选，支持 8 家 LLM
-- **独立翻译** — 专用快捷键触发，说话直接出译文
-- **词典纠错** — 专有名词、术语自动修正，拼音模糊匹配
-- **5 语言界面** — 简体中文 / 繁體中文 / English / 日本語 / 한국어
+和市面上主流 AI 输入法不同：听墨不绑厂商，ASR 和 LLM 都可以自由选择服务商；支持完全离线运行，数据不上传；轻量托盘常驻，没有输入法皮肤和弹窗。
+
+## 核心功能
+
+- **双引擎语音识别**：本地 SenseVoiceSmall（完全离线，230MB，中英日韩粤 5 语言）和云端 ASR（火山引擎 / 阿里云 Fun-ASR / OpenAI Whisper），可随时切换
+- **AI 润色**：可选 LLM 对识别结果去口语词、补标点、结构化排版，三档可选（轻量 / 均衡 / 结构化），支持 OpenAI / Claude / DeepSeek / 通义千问 / Gemini 等 8 家服务商
+- **翻译模式**：独立快捷键触发，说话直接出译文，支持中英日韩法德西 7 种目标语言
+- **词典纠错**：内置专有名词和术语自动修正，拼音模糊匹配 + Levenshtein 距离，避免 ASR 同音误识别
+- **5 语言界面**：简体中文 / 繁體中文 / English / 日本語 / 한국어
+- **录音静音**：录音时自动降低系统音量，避免录音里出现正在播放的声音
 
 ## 安装
 
-从 [Releases](https://github.com/shaoxin12/tingmo/releases) 下载 `TingMo-Setup-0.4.0.exe`。
+从 [Releases](https://github.com/shaoxin12/tingmo/releases) 下载最新安装包 `TingMo-Setup-0.4.0.exe`。
 
-首次启动时选择语音引擎，选择本地引擎会自动下载模型（~230MB）。
+首次启动会弹出引导向导，选择语音引擎：
+- **本地引擎**：自动下载模型（~230MB），下载完即可使用，完全离线
+- **云端引擎**：需在设置中配置 API Key，识别更精准
 
-## 使用
+## 使用方式
 
-| 操作 | 快捷键 |
-|------|--------|
-| 语音输入 | 右 Alt（可自定义） |
-| 翻译输入 | 右 Alt + 右 Shift（可自定义） |
+| 操作 | 默认快捷键 |
+|------|------------|
+| 语音输入 | 右 Alt（按一下开始，再按一下停止） |
+| 翻译输入 | 右 Alt + 右 Shift |
 
-> 默认切换模式：按一下开始录音，再按一下停止。可在设置中切换为按住模式。
+> 快捷键可在设置中自定义。支持切换模式和按住模式。
 
-## LLM 润色
-
-1. 设置 → 模型 → LLM 大模型
-2. 填入 API Key（支持 OpenAI / Claude / DeepSeek / 通义千问 / Gemini 等）
-3. 开启「启用润色」，选择润色风格（轻量 / 均衡 / 结构化）
-
-不启用 LLM 时，ASR 识别结果直接注入，纯离线可用。
-
-## 技术栈
-
-Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Audio API · Win32 SendInput (koffi FFI) · Zustand
+右键系统托盘图标可进入设置，配置 ASR 引擎、LLM 润色、词典、快捷键等。
 
 ## 开发
 
@@ -63,6 +60,8 @@ Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Au
 npm install
 npm run dev
 ```
+
+技术栈：Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Audio API · Win32 SendInput (koffi FFI) · Zustand
 
 ## License
 

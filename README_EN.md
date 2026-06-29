@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>A Windows desktop voice input app. Press a hotkey, speak, and your words are typed directly at the cursor — in any application.</strong>
+  <strong>A Windows desktop voice input app. Press a hotkey, speak, and your words are typed directly at the cursor.</strong>
 </p>
 
 <p align="center">
@@ -20,44 +20,39 @@
 
 ---
 
-Dual-engine recognition (offline + cloud), with built-in AI polish, dictionary correction, and translation.
+## What is this
 
-*[中文版本](README.md) is also available.*
+TingMo is a Windows desktop voice input tool. Press a hotkey in any app — chat, documents, email, browser — speak, and your words are transcribed and typed at the cursor. No window switching, no manual pasting.
+
+Unlike mainstream AI input methods, TingMo doesn't lock you into a single vendor. ASR and LLM providers are freely selectable. It runs fully offline if you choose the local engine, keeping your data on-device. Lightweight tray app — no skins, no pop-ups.
 
 ## Features
 
-- **Dual Engine** — Local SenseVoiceSmall (fully offline, 230MB) + Cloud ASR (Volcano Engine / Alibaba Cloud / OpenAI Whisper)
-- **AI Polish** — Removes filler words, auto-punctuation, 3 modes, supports 8 LLM providers
-- **Translate Hotkey** — Dedicated shortcut triggers translation mode
-- **Dictionary** — Custom terminology with fuzzy pinyin matching and correction
-- **5-Language UI** — 简体中文 / 繁體中文 / English / 日本語 / 한국어
+- **Dual-Engine ASR**: Local SenseVoiceSmall (fully offline, 230MB, 5 languages: zh/en/ja/ko/yue) and cloud ASR (Volcano Engine / Alibaba Cloud Fun-ASR / OpenAI Whisper) — switch anytime
+- **AI Polish**: Optional LLM refinement — removes filler words, adds punctuation, structures text. 3 modes (Light / Balanced / Structured) supporting 8 providers including OpenAI, Claude, DeepSeek, Qwen, and Gemini
+- **Translation**: Dedicated hotkey triggers translation mode. 7 target languages: EN, ZH, JA, KO, FR, DE, ES
+- **Dictionary**: Custom terminology with fuzzy pinyin matching and Levenshtein distance correction for ASR homophone errors
+- **5-Language UI**: 简体中文 / 繁體中文 / English / 日本語 / 한국어
+- **Auto-Mute**: Automatically lowers system volume while recording to prevent audio feedback
 
 ## Installation
 
 Download `TingMo-Setup-0.4.0.exe` from [Releases](https://github.com/shaoxin12/tingmo/releases).
 
-On first launch, choose your speech engine. Selecting local will auto-download the model (~230MB).
+On first launch you'll be guided through engine selection:
+- **Local engine**: Auto-downloads the model (~230MB), then works entirely offline
+- **Cloud engine**: Requires an API key in Settings, offers higher accuracy
 
 ## Usage
 
-| Action | Hotkey |
-|--------|--------|
-| Voice input | Right Alt (customizable) |
-| Translate | Right Alt + Right Shift (customizable) |
+| Action | Default Hotkey |
+|--------|---------------|
+| Voice Input | Right Alt (toggle: press to start, press again to stop) |
+| Translate | Right Alt + Right Shift |
 
-> Default toggle mode: press to start, press again to stop. Hold mode available in Settings.
+> Hotkeys and recording mode (toggle/hold) are customizable in Settings.
 
-## LLM Polish
-
-1. Settings → Model → LLM
-2. Enter your API Key (OpenAI / Claude / DeepSeek / Qwen / Gemini supported)
-3. Enable "Refine" and pick a style (Light / Balanced / Structured)
-
-Without LLM, the ASR result with built-in punctuation is injected directly — fully offline.
-
-## Tech Stack
-
-Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Audio API · Win32 SendInput (koffi FFI) · Zustand
+Right-click the tray icon for Settings, where you can configure ASR engine, LLM polish, dictionary, hotkeys, and more.
 
 ## Development
 
@@ -65,6 +60,8 @@ Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Au
 npm install
 npm run dev
 ```
+
+Tech Stack: Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Audio API · Win32 SendInput (koffi FFI) · Zustand
 
 ## License
 
