@@ -50,14 +50,27 @@
 | 语音输入 | 右 Alt |
 | 翻译输入 | 右 Shift + 右 Alt |
 
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 框架 | Electron 33 + React 18 + TypeScript |
+| ASR | SenseVoiceSmall ONNX（sherpa-onnx） |
+| 云端 ASR | 火山引擎 / 阿里云 Fun-ASR / OpenAI Whisper |
+| LLM | OpenAI 兼容 API（支持 8 家服务商） |
+| 音频 | Web Audio API → 16kHz 重采样 → WAV |
+| 注入 | Win32 `SendInput` + `KEYEVENTF_UNICODE`（koffi FFI） |
+| 热键 | `SetWindowsHookExW` 全局键盘钩子 |
+| 状态 | Zustand |
+| 界面 | React 18 + Vite + 5 语言 i18n |
+| 打包 | electron-builder（NSIS 安装包） |
+
 ## 开发
 
 ```bash
 npm install
 npm run dev
 ```
-
-技术栈：Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Audio API · Win32 SendInput (koffi FFI) · Zustand
 
 ## License
 

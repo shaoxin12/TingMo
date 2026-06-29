@@ -50,14 +50,27 @@ On first launch you'll be guided through engine selection:
 | Voice Input | Right Alt (press: press to start, press again to stop) |
 | Translate | Right Shift + Right Alt |
 
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Framework | Electron 33 + React 18 + TypeScript |
+| ASR | SenseVoiceSmall ONNX (sherpa-onnx) |
+| Cloud ASR | Volcano Engine / Alibaba Cloud Fun-ASR / OpenAI Whisper |
+| LLM | OpenAI-compatible API (8 providers supported) |
+| Audio | Web Audio API → 16kHz resample → WAV |
+| Injection | Win32 `SendInput` + `KEYEVENTF_UNICODE` (koffi FFI) |
+| Hotkeys | `SetWindowsHookExW` global keyboard hook |
+| State | Zustand |
+| UI | React 18 + Vite + 5-language i18n |
+| Packaging | electron-builder (NSIS installer) |
+
 ## Development
 
 ```bash
 npm install
 npm run dev
 ```
-
-Tech Stack: Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Audio API · Win32 SendInput (koffi FFI) · Zustand
 
 ## License
 
