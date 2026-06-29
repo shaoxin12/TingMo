@@ -47,8 +47,8 @@ function tintIcon(icon: NativeImage, r: number, g: number, b: number): NativeIma
 
 // ── Tray popup window ─────────────────────────────────────
 
-const POPUP_WIDTH = 190;
-const POPUP_HEIGHT = 310;
+const POPUP_WIDTH = 220;
+const POPUP_HEIGHT = 316;
 
 let popupWin: BrowserWindow | null = null;
 
