@@ -47,10 +47,10 @@ On first launch you'll be guided through engine selection:
 
 | Action | Default Hotkey |
 |--------|---------------|
-| Voice Input | Right Alt (toggle: press to start, press again to stop) |
+| Voice Input | Right Alt (press: press to start, press again to stop) |
 | Translate | Right Alt + Right Shift |
 
-> Hotkeys and recording mode (toggle/hold) are customizable in Settings.
+> Hotkeys and recording mode (press/hold) are customizable in Settings.
 
 Right-click the tray icon for Settings, where you can configure ASR engine, LLM polish, dictionary, hotkeys, and more.
 
