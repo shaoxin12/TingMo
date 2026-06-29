@@ -13,24 +13,15 @@ export const TrayPopup: React.FC = () => {
   const dismissRef = useRef(false);
 
   useEffect(() => {
-    // Close popup when clicking outside
     const handle = setTimeout(() => {
-      const onBlur = () => {
-        if (!dismissRef.current) {
-          dismissRef.current = true;
-          window.tingmo?.closeTrayPopup();
-        }
+      window.addEventListener('blur', () => {
+        if (!dismissRef.current) { dismissRef.current = true; window.tingmo?.closeTrayPopup(); }
+      }, { once: true });
+      const onEsc = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') { dismissRef.current = true; window.tingmo?.closeTrayPopup(); }
       };
-      window.addEventListener('blur', onBlur, { once: true });
-      // Also close on Escape
-      const onKey = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          dismissRef.current = true;
-          window.tingmo?.closeTrayPopup();
-        }
-      };
-      window.addEventListener('keydown', onKey);
-      return () => window.removeEventListener('keydown', onKey);
+      window.addEventListener('keydown', onEsc);
+      return () => window.removeEventListener('keydown', onEsc);
     }, 100);
     return () => {};
   }, []);
@@ -63,69 +54,47 @@ export const TrayPopup: React.FC = () => {
 
   return (
     <div className="tray-popup">
-      {/* Voice Mode */}
-      <div className="tray-popup-section">
-        <div className="tray-popup-label">{t('tray.voiceMode')}</div>
-        <button
-          className={`tray-popup-item ${asrProvider === 'local' ? 'active' : ''}`}
-          onClick={() => handleAsrProvider('local')}
-        >
-          <span className="tray-popup-radio">{asrProvider === 'local' ? '●' : '○'}</span>
-          <span>{t('tray.voiceMode.local')}</span>
-        </button>
-        <button
-          className={`tray-popup-item ${asrProvider === 'cloud' ? 'active' : ''}`}
-          onClick={() => handleAsrProvider('cloud')}
-        >
-          <span className="tray-popup-radio">{asrProvider === 'cloud' ? '●' : '○'}</span>
-          <span>{t('tray.voiceMode.cloud')}</span>
-        </button>
-      </div>
+      <button className={`tray-popup-row ${asrProvider === 'local' ? 'active' : ''}`}
+        onClick={() => handleAsrProvider('local')}>
+        <span className="tray-popup-dot">{asrProvider === 'local' ? '●' : '○'}</span>
+        {t('tray.voiceMode.local')}
+      </button>
+      <button className={`tray-popup-row ${asrProvider === 'cloud' ? 'active' : ''}`}
+        onClick={() => handleAsrProvider('cloud')}>
+        <span className="tray-popup-dot">{asrProvider === 'cloud' ? '●' : '○'}</span>
+        {t('tray.voiceMode.cloud')}
+      </button>
 
       <div className="tray-popup-sep" />
 
-      {/* Record Mode */}
-      <div className="tray-popup-section">
-        <div className="tray-popup-label">{t('tray.recordMode')}</div>
-        <button
-          className={`tray-popup-item ${recordMode === 'toggle' ? 'active' : ''}`}
-          onClick={() => handleRecordMode('toggle')}
-        >
-          <span className="tray-popup-radio">{recordMode === 'toggle' ? '●' : '○'}</span>
-          <span>{t('tray.recordMode.toggle')}</span>
-        </button>
-        <button
-          className={`tray-popup-item ${recordMode === 'hold' ? 'active' : ''}`}
-          onClick={() => handleRecordMode('hold')}
-        >
-          <span className="tray-popup-radio">{recordMode === 'hold' ? '●' : '○'}</span>
-          <span>{t('tray.recordMode.hold')}</span>
-        </button>
-      </div>
+      <button className={`tray-popup-row ${recordMode === 'toggle' ? 'active' : ''}`}
+        onClick={() => handleRecordMode('toggle')}>
+        <span className="tray-popup-dot">{recordMode === 'toggle' ? '●' : '○'}</span>
+        {t('tray.recordMode.toggle')}
+      </button>
+      <button className={`tray-popup-row ${recordMode === 'hold' ? 'active' : ''}`}
+        onClick={() => handleRecordMode('hold')}>
+        <span className="tray-popup-dot">{recordMode === 'hold' ? '●' : '○'}</span>
+        {t('tray.recordMode.hold')}
+      </button>
 
       <div className="tray-popup-sep" />
 
-      {/* Mute on Record */}
-      <button
-        className="tray-popup-item"
-        onClick={() => handleMuteOnRecord(!muteOnRecord)}
-      >
+      <button className="tray-popup-row" onClick={() => handleMuteOnRecord(!muteOnRecord)}>
         <span className="tray-popup-check">{muteOnRecord ? '✓' : ''}</span>
-        <span>{t('tray.muteOnRecord')}</span>
+        {t('tray.muteOnRecord')}
       </button>
 
       <div className="tray-popup-sep" />
 
-      {/* Settings */}
-      <button className="tray-popup-item" onClick={handleSettings}>
-        <span>{t('tray.settings')}</span>
+      <button className="tray-popup-row" onClick={handleSettings}>
+        {t('tray.settings')}
       </button>
 
       <div className="tray-popup-sep" />
 
-      {/* Quit */}
-      <button className="tray-popup-item" onClick={handleQuit}>
-        <span>{t('tray.quit')}</span>
+      <button className="tray-popup-row" onClick={handleQuit}>
+        {t('tray.quit')}
       </button>
     </div>
   );
