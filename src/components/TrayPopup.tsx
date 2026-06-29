@@ -55,7 +55,7 @@ export const TrayPopup: React.FC = () => {
       </button>
       <button className={`tray-popup-row ${asrProvider === 'cloud' ? 'active' : ''}`}
         onClick={() => handleAsrProvider('cloud')}>
-        <span className="tray-popup-dot">{asrProvider === 'cloud' ? '●' : '○'}</span>
+        <span className="tray-popup-dot" />
         {t('tray.voiceMode.cloud')}
       </button>
 
@@ -63,12 +63,12 @@ export const TrayPopup: React.FC = () => {
 
       <button className={`tray-popup-row ${recordMode === 'toggle' ? 'active' : ''}`}
         onClick={() => handleRecordMode('toggle')}>
-        <span className="tray-popup-dot">{recordMode === 'toggle' ? '●' : '○'}</span>
+        <span className="tray-popup-dot"></span>
         {t('tray.recordMode.toggle')}
       </button>
       <button className={`tray-popup-row ${recordMode === 'hold' ? 'active' : ''}`}
         onClick={() => handleRecordMode('hold')}>
-        <span className="tray-popup-dot">{recordMode === 'hold' ? '●' : '○'}</span>
+        <span className="tray-popup-dot" />
         {t('tray.recordMode.hold')}
       </button>
 
