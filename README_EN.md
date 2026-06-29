@@ -30,9 +30,7 @@ Dual-engine recognition (offline + cloud), with built-in AI polish, dictionary c
 - **AI Polish** — Removes filler words, auto-punctuation, 3 modes, supports 8 LLM providers
 - **Translate Hotkey** — Dedicated shortcut triggers translation mode
 - **Dictionary** — Custom terminology with fuzzy pinyin matching and correction
-- **Streaming Output** — LLM output streams chunk by chunk with typewriter effect
 - **5-Language UI** — 简体中文 / 繁體中文 / English / 日本語 / 한국어
-- **Minimal UI** — Tray icon + floating capsule appears only during recording
 
 ## Installation
 
