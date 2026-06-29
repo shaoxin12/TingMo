@@ -252,7 +252,8 @@ async function initRecognition(): Promise<void> {
           // Model not found — start background download, don't block app startup
           console.log('[Main] Model not found, starting background download...');
           downloadModel(join(app.getPath('userData'), 'models')).then(() => {
-            console.log('[Main] Background model download complete');
+            console.log('[Main] Background model download complete, reinitializing...');
+            initRecognition();
           }).catch((err: any) => {
             console.error('[Main] Background model download failed:', err.message);
           });
@@ -929,6 +930,7 @@ if (app) {
     const modelDir = join(app.getPath('userData'), 'models');
     try {
       const modelPath = await downloadModel(modelDir);
+      initRecognition();
       return { ok: true, path: modelPath };
     } catch (err: any) {
       return { ok: false, error: err.message };
