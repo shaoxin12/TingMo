@@ -48,7 +48,7 @@ On first launch you'll be guided through engine selection:
 | Action | Default Hotkey |
 |--------|---------------|
 | Voice Input | Right Alt (press: press to start, press again to stop) |
-| Translate | Right Alt + Right Shift |
+| Translate | Right Shift + Right Alt |
 
 > Hotkeys and recording mode (press/hold) are customizable in Settings.
 

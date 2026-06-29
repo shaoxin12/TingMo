@@ -335,7 +335,7 @@ export const SettingsWindow: React.FC = () => {
                   <span className="nb-label">{t('settings.translateInput')}</span>
                   <HotkeyRecorder type="translate" currentHotkey={translateHotkey}
                     onHotkeyChange={(key) => { setTranslateHotkey(key); window.tingmo?.setTranslateHotkey(key); }}
-                    onReset={() => { resetTranslateHotkey(); window.tingmo?.setTranslateHotkey('右 Alt + 右 Shift'); }}
+                    onReset={() => { resetTranslateHotkey(); window.tingmo?.setTranslateHotkey('右 Shift + 右 Alt'); }}
                   />
                 </div>
               </div>

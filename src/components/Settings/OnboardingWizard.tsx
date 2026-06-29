@@ -89,7 +89,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
             marginTop: 12, fontFamily: 'monospace', fontSize: 14,
           }}>
             <div><strong>{t('hotkey.key.rightAlt')}</strong> — {t('onboarding.voiceHotkey')}</div>
-            <div style={{ marginTop: 4 }}><strong>{t('hotkey.key.rightAlt')} + {t('hotkey.key.rightShift')}</strong> — {t('onboarding.translateHotkey')}</div>
+            <div style={{ marginTop: 4 }}><strong>{t('hotkey.key.rightShift')} + {t('hotkey.key.rightAlt')}</strong> — {t('onboarding.translateHotkey')}</div>
           </div>
         </div>
       )}

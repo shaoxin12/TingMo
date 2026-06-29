@@ -1,6 +1,6 @@
 # TingMo — Windows 桌面 AI 语音输入法
 
-按右 Alt 开始录音，说话，再按右 Alt 停止，语音自动转文字注入光标。右 Alt + 右 Shift 触发翻译模式（翻译快捷键可自定义）。
+按右 Alt 开始录音，说话，再按右 Alt 停止，语音自动转文字注入光标。右 Shift + 右 Alt 触发翻译模式（翻译快捷键可自定义）。
 
 **当前版本**: SenseVoiceSmall 本地 ASR（sherpa-onnx）+ 3 家云端 ASR + 8 家 LLM 润色/翻译，流式注入。
 
@@ -81,7 +81,7 @@ IDLE →(热键)→ RECORDING →(热键)→ RECOGNIZING →(refining)→ SUCCES
 支持两种模式（`hotkey.ts` `translateCombo` + `electron/main.ts` IPC handler）：
 
 - **独立组合键**（不含右 Alt）：所有键同时按下触发。如 `右 Ctrl` → 单按触发，`左 Ctrl + 左 Alt` → 同时按触发
-- **修饰键模式**（含右 Alt）：按住其余键 + 右 Alt 触发。如默认 `右 Alt + 右 Shift`
+- **修饰键模式**（含右 Alt）：按住其余键 + 右 Alt 触发。如默认 `右 Shift + 右 Alt`
 - 支持 Insert、Delete、F1-F12、Space 等非修饰键（`VK_NAME_MAP` 扩展映射）
 - `HotkeyRecorder` 支持多键录制，`keysRef` 跟踪所有按键
 

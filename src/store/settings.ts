@@ -72,7 +72,7 @@ export interface SettingsState {
 }
 
 const DEFAULT_HOTKEY = '右 Alt';
-const DEFAULT_TRANSLATE_HOTKEY = '右 Alt + 右 Shift';
+const DEFAULT_TRANSLATE_HOTKEY = '右 Shift + 右 Alt';
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 function schedulePersist(state: SettingsState): void {
