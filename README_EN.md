@@ -1,83 +1,72 @@
 # TingMo 听墨
 
-> AI-powered voice input for Windows | 🎤 Vibe Coding Project
+<p align="center">
+  <img src="public/icon.png" alt="TingMo" width="96" />
+</p>
 
-![version](https://img.shields.io/badge/version-V0.3.0-orange)
-![platform](https://img.shields.io/badge/platform-Windows%20x64-blue)
-![license](https://img.shields.io/badge/license-MIT-green)
-![vibe](https://img.shields.io/badge/vibe%20coding-yes-ff69b4)
+<p align="center">
+  <strong>Press a hotkey and speak — your words are typed at the cursor in any app.</strong>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot.png" alt="TingMo Screenshot" width="600" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-V0.4.0-orange" />
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" />
+  <img src="https://img.shields.io/badge/license-MIT-green" />
+</p>
+
+---
+
+Dual-engine recognition (offline + cloud), with built-in AI polish, dictionary correction, and translation.
 
 *[中文版本](README.md) is also available.*
 
-Press a hotkey, speak, release — your words appear at the cursor. Fully offline ASR with optional LLM refinement.
-
 ## Features
 
-- **Local ASR** — SenseVoiceSmall ONNX, fully offline, 5 languages (zh/en/ja/ko/yue)
-- **Built-in Punctuation** — ITN included in the model, no extra punctuation model needed
-- **LLM Refinement** (optional) — Removes filler words, auto-structures, preserves custom terms
-- **Translation** — ASR → translate to target language
-- **Dictionary** — Add custom terms for fuzzy correction and LLM context preservation
+- **Dual Engine** — Local SenseVoiceSmall (fully offline, 230MB) + Cloud ASR (Volcano Engine / Alibaba Cloud / OpenAI Whisper)
+- **AI Polish** — Removes filler words, auto-punctuation, 3 modes, supports 8 LLM providers
+- **Translate Hotkey** — Dedicated shortcut triggers translation mode
+- **Dictionary** — Custom terminology with fuzzy pinyin matching and correction
+- **Streaming Output** — LLM output streams chunk by chunk with typewriter effect
 - **5-Language UI** — 简体中文 / 繁體中文 / English / 日本語 / 한국어
-- **Minimal UI** — Floating capsule appears only during recording
+- **Minimal UI** — Tray icon + floating capsule appears only during recording
 
 ## Installation
 
-Download `TingMo-Setup-0.3.exe` from [Releases](https://github.com/shaoxin12/tingmo/releases).
+Download `TingMo-Setup-0.4.0.exe` from [Releases](https://github.com/shaoxin12/tingmo/releases).
 
-First launch downloads model files (~230MB) automatically.
+On first launch, choose your speech engine. Selecting local will auto-download the model (~230MB).
 
-## How to Use
+## Usage
 
-| Action | How |
-|--------|-----|
-| Voice input | Press hotkey → speak → press again |
-| Translate | Hold translate modifier + press hotkey |
-| Settings | Right-click tray icon → Settings |
+| Action | Hotkey |
+|--------|--------|
+| Voice input | Right Alt (customizable) |
+| Translate | Right Alt + Right Shift (customizable) |
 
-> Hotkeys are customizable in Settings. Default voice key is Right Alt.
+> Default toggle mode: press to start, press again to stop. Hold mode available in Settings.
 
-## LLM Refinement (Optional)
+## LLM Polish
 
 1. Settings → Model → LLM
-2. Enter your OpenAI-compatible API Key (GPT-4o-mini / Claude / DeepSeek / Qwen supported)
-3. Enable "Refine"
+2. Enter your API Key (OpenAI / Claude / DeepSeek / Qwen / Gemini supported)
+3. Enable "Refine" and pick a style (Light / Balanced / Structured)
 
-Without LLM, SenseVoice result with built-in punctuation is injected directly — works offline.
+Without LLM, the ASR result with built-in punctuation is injected directly — fully offline.
 
 ## Tech Stack
 
-| Layer | Tech |
-|-------|------|
-| Framework | Electron 33 + React 18 + TypeScript |
-| ASR | SenseVoiceSmall ONNX (sherpa-onnx) |
-| LLM | OpenAI-compatible API |
-| Audio | Web Audio API → 16kHz resample → WAV |
-| Injection | Win32 `SendInput` + `KEYEVENTF_UNICODE` (koffi FFI) |
-| State | Zustand |
-| i18n | React Context, 5 languages |
-
-## Model Files
-
-Placed in `%APPDATA%/TingMo/models/funasr/`:
-
-| File | Size |
-|------|------|
-| `model.int8.onnx` | 229 MB |
-| `tokens.txt` | 309 KB |
-| `am.mvn` | 11 KB |
+Electron 33 · React 18 · TypeScript · SenseVoiceSmall (sherpa-onnx) · Web Audio API · Win32 SendInput (koffi FFI) · Zustand
 
 ## Development
 
 ```bash
 npm install
-npm run dev            # Terminal 1: Vite
-npm run electron:dev   # Terminal 2: Build + Electron
+npm run dev
 ```
-
-## About
-
-This is a vibe coding project — built through rapid AI-assisted iteration. Issues and PRs welcome.
 
 ## License
 

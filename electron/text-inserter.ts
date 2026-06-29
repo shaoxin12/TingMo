@@ -4,8 +4,8 @@ const INPUT_KEYBOARD = 1;
 const KEYEVENTF_UNICODE = 0x0004;
 const KEYEVENTF_KEYUP = 0x0002;
 
-const VK_BACK = 0x08;
 const VK_RETURN = 0x0D;
+const VK_SHIFT = 0x10;
 
 const user32 = koffi.load('user32.dll');
 
@@ -34,29 +34,15 @@ function writeInput(buf: Buffer, base: number, vk: number, scan: number, flags: 
   buf.writeBigUInt64LE(0n, base + 24);          // dwExtraInfo
 }
 
-export async function backspaceChars(count: number): Promise<void> {
-  const buf = Buffer.alloc(count * 2 * INPUT_SIZE);
-  for (let i = 0; i < count; i++) {
-    writeInput(buf, i * 2 * INPUT_SIZE, VK_BACK, 0, 0);
-    writeInput(buf, (i * 2 + 1) * INPUT_SIZE, VK_BACK, 0, KEYEVENTF_KEYUP);
-  }
-  if (count > 0) {
-    const injected = SendInput(count * 2, koffi.as(buf, 'void *'), INPUT_SIZE);
-    if (injected !== count * 2) {
-      console.warn('[TextInserter] backspaceChars: injected', injected, 'of', count * 2, 'events');
-    }
-  }
-}
-
 // Fast one-shot injection: builds all INPUT structs in a single buffer,
 // sends them in ONE SendInput call. Handles \n as Enter key.
 export async function injectText(text: string): Promise<InjectResult> {
   const start = performance.now();
 
-  // Count inputs needed: \n uses 2 (VK_RETURN down+up), others use 2 (unicode down+up)
+  // Count inputs needed: \n uses 4 (Shift+Enter combo), others use 2 (unicode down+up)
   let inputCount = 0;
   for (const ch of text) {
-    inputCount += 2;
+    inputCount += (ch === '\n') ? 4 : 2;
   }
 
   if (inputCount === 0) {
@@ -68,8 +54,11 @@ export async function injectText(text: string): Promise<InjectResult> {
 
   for (const ch of text) {
     if (ch === '\n') {
+      // Shift+Enter — universal "newline without send" in chat apps
+      writeInput(buf, (idx++) * INPUT_SIZE, VK_SHIFT, 0, 0);
       writeInput(buf, (idx++) * INPUT_SIZE, VK_RETURN, 0, 0);
       writeInput(buf, (idx++) * INPUT_SIZE, VK_RETURN, 0, KEYEVENTF_KEYUP);
+      writeInput(buf, (idx++) * INPUT_SIZE, VK_SHIFT, 0, KEYEVENTF_KEYUP);
     } else {
       const cp = ch.codePointAt(0) ?? 0;
       writeInput(buf, (idx++) * INPUT_SIZE, 0, cp, KEYEVENTF_UNICODE);

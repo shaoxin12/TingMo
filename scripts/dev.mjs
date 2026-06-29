@@ -1,15 +1,19 @@
-import { spawn } from 'child_process';
-import { createServer } from 'net';
+﻿import { spawn } from 'child_process';
+import { createServer, connect } from 'net';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import chokidar from 'chokidar';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
 const VITE_PORT = 5173;
+const TRIGGER_PORT = 5174;
 let electronProcess = null;
 let viteProcess = null;
+let isBuilding = false;
+let pendingRestart = false;
 
 function waitForPort(port, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
@@ -49,12 +53,16 @@ function buildMain() {
   });
 }
 
-function startElectron() {
+async function startElectron() {
   if (electronProcess) {
     console.log('[dev] Killing old Electron...');
-    electronProcess.kill();
+    try { spawn('taskkill', ['/f', '/t', '/pid', String(electronProcess.pid)], { shell: true }); } catch {}
+    try { electronProcess.kill(); } catch {}
     electronProcess = null;
   }
+
+  // Brief delay to let ports release before starting new instance
+  await new Promise(r => setTimeout(r, 500));
 
   console.log('[dev] Starting Electron...');
   electronProcess = spawn('npx', ['electron', '.'], {
@@ -67,8 +75,32 @@ function startElectron() {
   electronProcess.on('close', (code) => {
     console.log(`[dev] Electron exited (code ${code})`);
     electronProcess = null;
-    // Don't exit — wait for more file changes or manual Ctrl+C
   });
+}
+
+let restartScheduled = false;
+function scheduleRestart() {
+  if (restartScheduled) return;
+  restartScheduled = true;
+
+  if (isBuilding) {
+    pendingRestart = true;
+    return;
+  }
+
+  restartScheduled = false;
+  isBuilding = true;
+  pendingRestart = false;
+
+  buildMain()
+    .then(() => { isBuilding = false; startElectron(); })
+    .catch((err) => { isBuilding = false; console.error('[dev] Build failed:', err.message); })
+    .finally(() => {
+      if (pendingRestart) {
+        pendingRestart = false;
+        scheduleRestart();
+      }
+    });
 }
 
 // Start Vite
@@ -90,6 +122,20 @@ viteProcess.on('close', (code) => {
   process.exit(0);
 });
 
+// TCP trigger listener for manual rebuild signals
+const triggerServer = createServer((socket) => {
+  socket.on('data', () => {});
+  socket.on('end', () => {
+    console.log('[dev] Manual rebuild triggered via TCP');
+    scheduleRestart();
+  });
+  socket.end();
+});
+triggerServer.listen(TRIGGER_PORT, '127.0.0.1');
+triggerServer.on('error', (err) => {
+  console.error(`[dev] Trigger port ${TRIGGER_PORT} unavailable:`, err.message);
+});
+
 try {
   console.log('[dev] Waiting for Vite on port', VITE_PORT, '...');
   await waitForPort(VITE_PORT);
@@ -99,29 +145,36 @@ try {
   await buildMain();
   startElectron();
 
-  // Watch electron/ directory for changes to hot-restart
-  const electronDir = path.join(ROOT, 'electron');
-  console.log('[dev] Watching', electronDir, 'for changes...');
+  // Watch with chokidar (reliable cross-platform file watching)
+  console.log('[dev] Watching electron/ for changes (chokidar)...');
 
-  const watchedFiles = new Set();
-  fs.watch(electronDir, { recursive: true }, (eventType, filename) => {
-    if (!filename || !filename.endsWith('.ts')) return;
-    // Debounce: skip if we just handled this file
-    if (watchedFiles.has(filename)) return;
-    watchedFiles.add(filename);
-    setTimeout(() => watchedFiles.delete(filename), 500);
-
-    console.log(`[dev] Change detected: ${filename}`);
-    buildMain().then(() => {
-      startElectron();
-    }).catch((err) => {
-      console.error('[dev] Build failed:', err.message);
-    });
+  let watchTimer = null;
+  const watcher = chokidar.watch([
+    path.join(ROOT, 'electron/**/*.ts'),
+  ], {
+    cwd: ROOT,
+    ignoreInitial: true,
+    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
   });
+
+  const onFileChange = (filepath) => {
+    if (!filepath.endsWith('.ts')) return;
+    if (watchTimer) clearTimeout(watchTimer);
+    watchTimer = setTimeout(() => {
+      watchTimer = null;
+      console.log(`[dev] 🔄 Change: ${filepath}`);
+      scheduleRestart();
+    }, 300);
+  };
+
+  watcher.on('change', onFileChange);
+  watcher.on('add', onFileChange);
 
   // Handle Ctrl+C gracefully
   process.on('SIGINT', () => {
     console.log('[dev] Shutting down...');
+    watcher.close();
+    triggerServer.close();
     if (electronProcess) electronProcess.kill();
     if (viteProcess) viteProcess.kill();
     process.exit(0);

@@ -1,8 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(curl *)",
-      "Bash(export *)"
+      "Bash(npm run dev *)",
+      "Bash(npm run build *)",
+      "Bash(npm run build:main *)",
+      "Bash(npm run build:renderer *)",
+      "Bash(npm run electron:dev *)",
+      "Bash(npm run electron:build *)",
+      "Bash(npm run test:unit *)",
+      "Bash(npm run rebuild *)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(npx tsc *)",
+      "Bash(node --experimental-strip-types test/run-test.mjs *)",
+
+      "Bash(git add *)",
+      "Bash(git diff --cached *)",
+      "Bash(git diff --staged *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git stash *)",
+      "Bash(npm install *)",
+      "Bash(npm ci *)",
+      "Bash(npm update *)",
+      "Bash(npm ls *)",
+      "Bash(node scripts/*)"
     ]
   }
 }

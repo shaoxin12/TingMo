@@ -1,23 +1,27 @@
 {
   "name": "TingMo",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "听墨 - 桌面 AI 语音输入法",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "vite": "vite",
     "build": "npm run build:main && npm run build:renderer",
-    "build:main": "esbuild electron/main.ts --bundle --platform=node --outfile=dist-electron/main.js --sourcemap --external:electron --external:koffi --external:path --external:onnxruntime-node --external:sherpa-onnx --format=cjs && esbuild electron/preload.ts --bundle --platform=node --outfile=dist-electron/preload.js --sourcemap --external:electron --external:koffi --format=cjs",
+    "build:main": "esbuild electron/main.ts --bundle --platform=node --outfile=dist-electron/main.js --sourcemap --external:electron --external:koffi --external:path --external:onnxruntime-node --external:sherpa-onnx --external:pinyin --format=cjs && esbuild electron/preload.ts --bundle --platform=node --outfile=dist-electron/preload.js --sourcemap --external:electron --external:koffi --format=cjs",
     "build:renderer": "tsc && vite build",
     "electron:dev": "npm run build:main && node -e \"process.env.NODE_ENV='development';delete process.env.ELECTRON_RUN_AS_NODE;delete process.env.ELECTRON_FORCE_IS_PACKAGED;require('child_process').spawn(require('electron'),['.'],{stdio:'inherit',env:{...process.env,NODE_ENV:'development'}})\"",
     "electron:build": "npm run build && electron-builder",
+    "release:patch": "npm version patch && npm run electron:build",
+    "release:minor": "npm version minor && npm run electron:build",
     "test:unit": "tsx --test electron/hotkey-events.test.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "rebuild": "node scripts/rebuild.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
     "koffi": "^2.16.2",
     "onnxruntime-node": "^1.26.0",
+    "pinyin": "^4.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sherpa-onnx": "^1.13.2",
@@ -30,6 +34,7 @@
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "chokidar": "^5.0.0",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.28.0",

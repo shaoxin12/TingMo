@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n/context';
 
+type CheckState = 'idle' | 'checking' | 'ok' | 'fail';
+
 export const UpdatePanel: React.FC = () => {
   const { t } = useI18n();
-  const [checking, setChecking] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [checkState, setCheckState] = useState<CheckState>('idle');
   const [statusMsg, setStatusMsg] = useState('');
+  const [downloading, setDownloading] = useState(false);
   const [updateReady, setUpdateReady] = useState(false);
   const [downloadPercent, setDownloadPercent] = useState(0);
 
@@ -19,14 +21,13 @@ export const UpdatePanel: React.FC = () => {
 
     const unsub2 = window.tingmo?.onUpdateProgress?.((data) => {
       setDownloadPercent(data.percent);
-      setStatusMsg(t('update.downloading') + ' ' + Math.round(data.percent) + '%');
     });
     if (unsub2) unsubs.push(unsub2);
 
     const unsub3 = window.tingmo?.onUpdateDownloaded?.(() => {
       setDownloading(false);
       setUpdateReady(true);
-      setStatusMsg(t('update.downloaded'));
+      setStatusMsg('');
     });
     if (unsub3) unsubs.push(unsub3);
 
@@ -34,19 +35,20 @@ export const UpdatePanel: React.FC = () => {
   }, [t]);
 
   const handleCheck = async () => {
-    setChecking(true);
-    setStatusMsg(t('update.checking'));
+    setCheckState('checking');
+    setStatusMsg('');
     try {
       const result = await window.tingmo?.checkForUpdates();
       if (result?.updateAvailable) {
+        setCheckState('ok');
         setStatusMsg(t('update.available') + ' (v' + result.version + ')');
       } else {
+        setCheckState('ok');
         setStatusMsg(t('update.upToDate'));
       }
     } catch {
-      setStatusMsg(t('update.error'));
+      setCheckState('fail');
     }
-    setChecking(false);
   };
 
   const handleDownload = async () => {
@@ -54,8 +56,8 @@ export const UpdatePanel: React.FC = () => {
     try {
       await window.tingmo?.downloadUpdate();
     } catch {
-      setStatusMsg(t('update.error'));
       setDownloading(false);
+      setCheckState('fail');
     }
   };
 
@@ -63,46 +65,37 @@ export const UpdatePanel: React.FC = () => {
     window.tingmo?.installUpdate();
   };
 
+  const btnClass = `nb-btn nb-btn-test ${checkState === 'checking' ? 'nb-btn-test-loading' : ''} ${checkState === 'ok' ? 'nb-btn-test-ok' : ''} ${checkState === 'fail' ? 'nb-btn-test-fail' : ''}`;
+
   return (
     <div>
-      <div className="nb-row">
-        <span className="nb-label">{t('update.currentVersion')}</span>
-        <span className="nb-value" style={{ fontSize: 12, fontFamily: 'monospace' }}>V0.3.0</span>
-      </div>
-      {statusMsg && (
-        <>
-          <div className="nb-hr" />
-          <div className="nb-row">
-            <span className="nb-label">{t('update.status')}</span>
-            <span className="nb-value" style={{ fontSize: 12 }}>{statusMsg}</span>
+      <div className="nb-row" style={{ alignItems: 'center' }}>
+        <span className="nb-label" style={{ flex: 'none' }}>{t('update.currentVersion')} <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#666', marginLeft: 4 }}>V0.4.0</span></span>
+        {downloading && (
+          <div style={{ flex: 1, height: 3, background: '#eee', borderRadius: 1, marginRight: 8 }}>
+            <div style={{ width: downloadPercent + '%', height: '100%', background: '#FF5A1F', borderRadius: 1, transition: 'width 0.3s' }} />
           </div>
-        </>
-      )}
-      {downloading && (
-        <>
-          <div className="nb-hr" />
-          <div className="nb-row">
-            <div style={{ width: '100%', height: 4, background: '#eee', borderRadius: 2 }}>
-              <div style={{ width: downloadPercent + '%', height: '100%', background: '#FF5A1F', borderRadius: 2, transition: 'width 0.3s' }} />
-            </div>
-          </div>
-        </>
-      )}
-      <div className="nb-hr" />
-      <div className="nb-row" style={{ gap: 8 }}>
+        )}
+        {checkState === 'ok' && statusMsg && (
+          <span style={{ color: '#34a853', fontSize: 11, flex: 1 }}>{statusMsg}</span>
+        )}
+        <div style={{ flex: 1 }} />
+        {checkState === 'fail' && (
+          <span style={{ color: '#e00', fontSize: 11, marginRight: 6 }}>{t('update.error')}</span>
+        )}
         {!updateReady ? (
           <>
-            <button className="nb-btn" onClick={handleCheck} disabled={checking}>
-              {checking ? t('update.checking') : t('update.check')}
+            <button className={btnClass} onClick={handleCheck} disabled={checkState === 'checking'}>
+              {checkState === 'checking' ? t('update.checking') : checkState === 'ok' ? '✓' : checkState === 'fail' ? '✗' : t('update.check')}
             </button>
-            {statusMsg.includes('v') && !statusMsg.includes(t('update.upToDate')) && (
-              <button className="nb-btn" onClick={handleDownload} disabled={downloading}>
+            {checkState === 'ok' && statusMsg.includes('v') && (
+              <button className="nb-btn" onClick={handleDownload} disabled={downloading} style={{ fontSize: 11, padding: '3px 10px', flex: 'none', marginLeft: 6 }}>
                 {downloading ? t('update.downloading') + '...' : t('update.download')}
               </button>
             )}
           </>
         ) : (
-          <button className="nb-btn" onClick={handleInstall} style={{ background: '#FF5A1F', color: '#fff', border: 'none' }}>
+          <button className="nb-btn" onClick={handleInstall} style={{ background: '#FF5A1F', color: '#fff', border: 'none', fontSize: 11, padding: '3px 10px', flex: 'none' }}>
             {t('update.install')}
           </button>
         )}

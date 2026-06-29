@@ -5,6 +5,8 @@ interface Props {
   currentHotkey: string;
   onHotkeyChange: (key: string) => void;
   onReset: () => void;
+  /** 'recording' = voice hotkey, 'translate' = translation hotkey */
+  type?: 'recording' | 'translate';
 }
 
 // Map key codes to i18n keys
@@ -23,7 +25,7 @@ function keyCodeToI18n(code: string): string {
   return '';
 }
 
-export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange, onReset }) => {
+export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange, onReset, type = 'recording' }) => {
   const { t } = useI18n();
   const [isRecording, setIsRecording] = useState(false);
   const [display, setDisplay] = useState('');
@@ -32,27 +34,25 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!isRecording) return;
+    // Skip browser-generated ghost events (empty code or "Unidentified" key)
+    if (!e.code || e.key === 'Unidentified') return;
     e.preventDefault();
     e.stopPropagation();
     keysRef.current.add(e.code);
 
     const i18nKey = keyCodeToI18n(e.code);
 
-    // Check if the key pressed IS a modifier key (has i18n translation)
-    const isModifierKey = i18nKey !== '';
-
+    // Build display from ALL currently held keys (supports multi-modifier combos)
     const parts: string[] = [];
-    if (e.ctrlKey && !isModifierKey) parts.push('Ctrl');
-    if (e.altKey && !isModifierKey) parts.push('Alt');
-    if (e.shiftKey && !isModifierKey) parts.push('Shift');
-    if (e.metaKey && !isModifierKey) parts.push('Win');
-
-    if (i18nKey) {
-      // Single modifier key (e.g. Right Alt) — use the translated name directly
-      parts.push(t(i18nKey));
-    } else if (!['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight',
-      'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight'].includes(e.code)) {
-      parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+    for (const code of keysRef.current) {
+      const k = keyCodeToI18n(code);
+      if (k) {
+        parts.push(t(k));
+      } else if (!['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight',
+        'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight'].includes(code)) {
+        // Regular key — just use the key name
+        parts.push(code.startsWith('Key') ? code.slice(3) : code);
+      }
     }
 
     const newDisplay = parts.join(' + ');
@@ -66,11 +66,13 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
     keysRef.current.delete(e.code);
     if (keysRef.current.size === 0 && displayRef.current) {
       const key = displayRef.current;
-      // 1. Change the hotkey in main process (await it to complete)
-      await window.tingmo?.setRecordingHotkey(key);
+      // 1. Notify main process if this is the recording hotkey
+      if (type === 'recording') {
+        await window.tingmo?.setRecordingHotkey(key);
+      }
       // 2. Notify parent to update Zustand state
       onHotkeyChange(key);
-      // 3. THEN resume the hook (hotkey already changed, safe to resume)
+      // 3. THEN resume the hook
       await window.tingmo?.setHotkeyPaused(false);
       setIsRecording(false);
     }
@@ -100,6 +102,10 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
 
   const handleReset = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setIsRecording(false);
+    setDisplay('');
+    displayRef.current = '';
+    keysRef.current.clear();
     await window.tingmo?.setHotkeyPaused(false);
     onReset();
   };

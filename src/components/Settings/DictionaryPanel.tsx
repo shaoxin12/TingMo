@@ -50,10 +50,7 @@ export const DictionaryPanel: React.FC = () => {
         <div className="nb-card" style={{ padding: '14px 18px' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {dictionary.map((entry, i) => (
-              <span
-                key={i}
-                className="dict-tag"
-              >
+              <span key={i} className="dict-tag">
                 {entry.word}
                 <button
                   onClick={() => removeDictEntry(i)}

@@ -34,6 +34,9 @@ const api = {
   reportCaptureError: (message: string) => ipcRenderer.invoke('voice:capture-error', message),
   copyText: (text: string) => ipcRenderer.invoke('voice:copy-text', text),
 
+  // Allow renderer to resize the floating window (e.g. error panel expansion)
+  resizeFloating: (width: number, height: number) => ipcRenderer.invoke('floating:resize', width, height),
+
   // Model download progress
   onModelProgress: (callback: (data: { stage: string; percent: number; error?: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { stage: string; percent: number; error?: string }) => callback(data);
@@ -46,10 +49,15 @@ const api = {
   // Streaming ASR: process a small chunk, returns raw text
   asrChunk: (wavBuf: ArrayBuffer) => ipcRenderer.invoke('voice:asr-chunk', wavBuf) as Promise<string>,
 
+  // Streaming ASR lifecycle (for providers that support incremental recognition)
+  asrStreamStart: (sampleRate: number, lang: string) => ipcRenderer.invoke('voice:asr-stream-start', sampleRate, lang) as Promise<void>,
+  asrStreamSend: (wavBuf: ArrayBuffer) => ipcRenderer.invoke('voice:asr-stream-chunk', wavBuf) as Promise<void>,
+  asrStreamEnd: () => ipcRenderer.invoke('voice:asr-stream-end') as Promise<string>,
+
   // Send audio buffer to main process for transcription
   transcribe: (audioBuffer: ArrayBuffer, language?: string, opts?: {
     translate?: boolean; translateTarget?: string; dictionary?: Array<{word: string; replace: string}>;
-    polishMode?: string; customPrompt?: string; preAsrText?: string;
+    polishMode?: string; preAsrText?: string;
   }) => ipcRenderer.invoke('voice:transcribe', audioBuffer, language, opts),
 
   // Stats & history
@@ -59,7 +67,7 @@ const api = {
   clearHistory: () => ipcRenderer.invoke('history:clear'),
 
   // Hotkey management
-  setTranslateModifier: (keyName: string) => ipcRenderer.invoke('settings:set-translate-modifier', keyName),
+  setTranslateHotkey: (hotkey: string) => ipcRenderer.invoke('settings:set-translate-hotkey', hotkey),
   setRecordingHotkey: (keyName: string) => ipcRenderer.invoke('settings:set-hotkey', keyName),
   setHotkeyPaused: (paused: boolean) => ipcRenderer.invoke('hotkey:pause', paused),
   onTranslateMode: (callback: (data: { enabled: boolean }) => void) => {
@@ -81,6 +89,9 @@ const api = {
   getRefinementStatus: () => ipcRenderer.invoke('settings:refinement-status'),
   getSystemLocale: () => ipcRenderer.invoke('settings:get-system-locale') as Promise<string>,
   setUiLanguage: (lang: string) => ipcRenderer.invoke('settings:set-ui-language', lang),
+
+  // UI sound — played from main process via Win32 MessageBeep (avoids renderer AudioContext issues)
+  playSound: (type: string) => ipcRenderer.invoke('voice:play-sound', type),
 
   // Debug
   debugSaveWav: (buffer: ArrayBuffer, filename: string) => ipcRenderer.invoke('debug:save-wav', buffer, filename),

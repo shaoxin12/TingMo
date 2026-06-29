@@ -39,28 +39,47 @@ export async function testAsrConnection(
   }
 
   // ── Volcano Engine (豆包语音) ──────────────────────
+  // Volcano uses WebSocket, not HTTP. Test by opening a WS connection
+  // and checking if the server accepts our credentials.
   if (provider === 'volcano') {
     try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 10000);
-      const res = await fetch(`${endpoint}/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': apiKey,
-          'X-Api-Resource-Id': 'volc.seedasr.sauc.duration',
-          'X-Api-Request-Id': crypto.randomUUID(),
-          'X-Api-Sequence': '-1',
-        },
-        body: JSON.stringify({ audio_format: 'wav' }),
-        signal: ctrl.signal,
+      const WS_URL = 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream';
+      const WebSocket = require('ws');
+      const result = await new Promise<TestResult>((resolve) => {
+        const timer = setTimeout(() => {
+          try { ws.close(); } catch { /* ignore */ }
+          resolve({ ok: false, error: '连接超时 (10s)' });
+        }, 10000);
+        const ws = new WebSocket(WS_URL, {
+          headers: {
+            'X-Api-Key': apiKey,
+            'X-Api-Resource-Id': 'volc.seedasr.sauc.duration',
+            'X-Api-Request-Id': crypto.randomUUID(),
+            'X-Api-Sequence': '-1',
+          },
+        });
+        ws.on('open', () => {
+          clearTimeout(timer);
+          try { ws.close(); } catch { /* ignore */ }
+          resolve({ ok: true });
+        });
+        ws.on('error', (err: Error) => {
+          clearTimeout(timer);
+          const msg = err.message || '';
+          if (msg.includes('401') || msg.includes('403')) resolve({ ok: false, error: '密钥无效 (HTTP 403)' });
+          else if (msg.includes('ENOTFOUND')) resolve({ ok: false, error: 'DNS 解析失败，请检查网络' });
+          else if (msg.includes('ECONNREFUSED')) resolve({ ok: false, error: '连接被拒绝，请检查网络' });
+          else resolve({ ok: false, error: msg.slice(0, 100) || 'WebSocket 连接失败' });
+        });
+        ws.on('unexpected-response', (_req: any, res: any) => {
+          clearTimeout(timer);
+          const status = res.statusCode;
+          if (status === 401 || status === 403) resolve({ ok: false, error: `密钥无效 (HTTP ${status})` });
+          else resolve({ ok: false, error: `服务器拒绝连接 (HTTP ${status})` });
+        });
       });
-      clearTimeout(timer);
-      if (res.status === 401 || res.status === 403) return { ok: false, error: `密钥无效 (HTTP ${res.status})` };
-      // Server returns 400 for empty audio — auth passed, key is valid
-      return { ok: res.status === 400 || res.ok };
+      return result;
     } catch (err: any) {
-      if (err.name === 'AbortError') return { ok: false, error: '连接超时' };
       return { ok: false, error: err.message?.slice(0, 100) };
     }
   }

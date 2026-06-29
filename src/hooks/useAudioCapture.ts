@@ -79,6 +79,15 @@ function writeString(view: DataView, offset: number, str: string): void {
 const SILENCE_RMS = 0.02;
 const DEFAULT_VAD_TIMEOUT_SEC = 2.0;
 
+// ── Waveform level processing ──────────────────────────────
+const LEVEL_SCALE = 10.0;       // scale RMS to ~0-1 range (higher = taller bars for same voice)
+const NOISE_GATE = 0.006;       // soft floor: RMS below this → output 0 (lowered from 0.015)
+
+// ── Warmup / spike prevention ───────────────────────────────
+const HARD_MUTE_FRAMES = 40;    // prime analyser with gain=0 (~667ms)
+const DAMPED_FRAMES = 15;       // damped attack frames after hard mute (~250ms)
+const WARMUP_TOTAL = HARD_MUTE_FRAMES + DAMPED_FRAMES;
+
 export function useAudioCapture() {
   const [audioLevel, setAudioLevel] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -92,9 +101,18 @@ export function useAudioCapture() {
   const vadCallbackRef = useRef<(() => void) | null>(null);
   const vadTriggeredRef = useRef(false);
   const sentSamplesRef = useRef(0);
+  const warmupFramesRef = useRef(0);  // frames remaining in warmup
   const TARGET_RATE = 16000;
 
   const startCapture = useCallback(async (deviceId?: string) => {
+    // Reset state synchronously (before any await)
+    setAudioLevel(0);
+    warmupFramesRef.current = WARMUP_TOTAL;
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = 0;
+    }
+
     try {
       const constraints: MediaStreamConstraints = {
         audio: {
@@ -112,12 +130,22 @@ export function useAudioCapture() {
       audioContextRef.current = audioCtx;
       sampleRateRef.current = audioCtx.sampleRate;
 
+      // Resume before creating nodes — prevents currentTime jump past ramp target
+      await audioCtx.resume();
+
       const source = audioCtx.createMediaStreamSource(stream);
+
+      // ── Gain node BEFORE analyser: starts at 0, ramps to 1 after warmup ──
+      // This is THE key fix for the startup spike. Without it, mic activation
+      // transients and analyser initialization noise go straight to the bars.
+      const gate = audioCtx.createGain();
+      gate.gain.value = 0;  // immediate zero
 
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.8;
-      source.connect(analyser);
+      analyser.smoothingTimeConstant = 0;  // no smoothing (FloatingWindow has its own)
+      source.connect(gate);
+      gate.connect(analyser);
       analyserRef.current = analyser;
 
       const bufferSize = 4096;
@@ -138,7 +166,6 @@ export function useAudioCapture() {
 
         if (rms < SILENCE_RMS) {
           silenceDurRef.current += inputData.length / sampleRateRef.current;
-          // VAD auto-stop
           if (
             !vadTriggeredRef.current &&
             silenceDurRef.current >= vadTimeoutRef.current &&
@@ -159,9 +186,24 @@ export function useAudioCapture() {
       scriptNode.connect(muteGain);
       muteGain.connect(audioCtx.destination);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const dataArray = new Uint8Array(analyser.fftSize);
 
       const loop = () => {
+        // ── Phase 1: Hard mute — prime analyser with gain=0 ──
+        if (warmupFramesRef.current > DAMPED_FRAMES) {
+          warmupFramesRef.current--;
+          analyser.getByteTimeDomainData(dataArray);  // prime + discard
+          animFrameRef.current = requestAnimationFrame(loop);
+          return;
+        }
+
+        // ── Phase 2: Start gain ramp (once, at transition) ──
+        if (warmupFramesRef.current === DAMPED_FRAMES) {
+          gate.gain.setValueAtTime(0, audioCtx.currentTime);
+          gate.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.3);
+        }
+
+        // ── Phase 3: Read analyser, compute level ──
         analyser.getByteTimeDomainData(dataArray);
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) {
@@ -169,8 +211,31 @@ export function useAudioCapture() {
           sum += v * v;
         }
         const rms = Math.sqrt(sum / dataArray.length);
-        setAudioLevel(Math.min(1, rms * 4));
+
+        // Soft-knee noise gate: smooth transition instead of hard cut
+        // Below half-gate → 0. Between half and 2× gate → gentle fade-in. Above → full.
+        let gated: number;
+        if (rms < NOISE_GATE * 0.5) {
+          gated = 0;
+        } else if (rms < NOISE_GATE * 2) {
+          const t = (rms - NOISE_GATE * 0.5) / (NOISE_GATE * 1.5);
+          gated = rms * t;  // smooth quadratic-like fade
+        } else {
+          gated = rms;
+        }
+        const rawLevel = Math.min(1, gated * LEVEL_SCALE);
+
+        // ── Envelope follower (gradual attack, slow release) ──
+        // During warmup, attack is heavily damped so bars grow smoothly from zero.
+        const warmingUp = warmupFramesRef.current > 0;
+        if (warmingUp) warmupFramesRef.current--;
+
         animFrameRef.current = requestAnimationFrame(loop);
+
+        // Pass raw level to FloatingWindow — it does its own smoothing via levelRef.
+        // During warmup, heavily attenuate to prevent any spike from reaching the UI.
+        const out = warmingUp ? rawLevel * 0.01 : rawLevel;
+        setAudioLevel(out);
       };
       loop();
       return true;
@@ -217,6 +282,7 @@ export function useAudioCapture() {
       streamRef.current = null;
     }
     setAudioLevel(0);
+    warmupFramesRef.current = 0;
 
     const chunks = pcmChunksRef.current;
     if (chunks.length === 0) return null;
@@ -255,5 +321,15 @@ export function useAudioCapture() {
     vadCallbackRef.current = cb;
   }, []);
 
-  return { audioLevel, startCapture, stopCapture, drainNewWav, setVadTimeout, setVadCallback };
+  // Reset: call before making capsule visible to guarantee zero state
+  const resetLevels = useCallback(() => {
+    setAudioLevel(0);
+    warmupFramesRef.current = WARMUP_TOTAL;
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = 0;
+    }
+  }, []);
+
+  return { audioLevel, startCapture, stopCapture, drainNewWav, setVadTimeout, setVadCallback, resetLevels };
 }

@@ -1,5 +1,5 @@
-import type { IRefinementProvider, RefineContext, RefinementResult, DictEntry } from './llm-refine';
-import { buildRefinePrompt, buildTranslatePrompt, buildUserPrompt } from './llm-refine';
+import type { IRefinementProvider, RefineContext, RefinementResult } from './llm-refine';
+import { buildRefinePrompt, buildTranslatePrompt, buildTranslateUserPrompt, buildUserPrompt } from './llm-refine';
 
 export interface OpenAIConfig {
   apiKey: string;
@@ -24,7 +24,7 @@ export class OpenAIProvider implements IRefinementProvider {
       }
       return { refinedText: text || rawText, originalText: rawText, provider: `openai/${this.config.model}`, durationMs: performance.now() - t0 };
     } catch {
-      return this.callAPI(systemPrompt, rawText, t0);
+      return this.callAPI(systemPrompt, buildUserPrompt(rawText), t0);
     }
   }
 
@@ -110,10 +110,10 @@ export class OpenAIProvider implements IRefinementProvider {
   async translate(text: string, targetLang: string, context?: RefineContext): Promise<RefinementResult> {
     const t0 = performance.now();
     const systemPrompt = buildTranslatePrompt(targetLang, context?.dictionary);
-    return this.callAPI(systemPrompt, text, t0);
+    return this.callAPI(systemPrompt, buildTranslateUserPrompt(text, targetLang), t0);
   }
 
-  private async callAPI(systemPrompt: string, userText: string, t0: number): Promise<RefinementResult> {
+  private async callAPI(systemPrompt: string, userMessage: string, t0: number): Promise<RefinementResult> {
     const baseUrl = (this.config.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
     const url = `${baseUrl}/chat/completions`;
     const timeout = this.config.timeoutMs || 30000;
@@ -132,9 +132,9 @@ export class OpenAIProvider implements IRefinementProvider {
           model: this.config.model,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: buildUserPrompt(userText) },
+            { role: 'user', content: userMessage },
           ],
-          max_tokens: userText.length < 30 ? 256 : 1024,
+          max_tokens: userMessage.length < 30 ? 256 : 1024,
           temperature: 0.1,
         }),
         signal: controller.signal,
@@ -146,11 +146,11 @@ export class OpenAIProvider implements IRefinementProvider {
       }
 
       const json: any = await res.json();
-      const refinedText = json.choices?.[0]?.message?.content?.trim() || userText;
+      const refinedText = json.choices?.[0]?.message?.content?.trim() || userMessage;
 
       return {
         refinedText,
-        originalText: userText,
+        originalText: userMessage,
         provider: `openai/${this.config.model}`,
         durationMs: performance.now() - t0,
       };

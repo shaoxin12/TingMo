@@ -1,5 +1,5 @@
 import type { IRefinementProvider, RefineContext, RefinementResult } from './llm-refine';
-import { buildRefinePrompt, buildTranslatePrompt, buildUserPrompt } from './llm-refine';
+import { buildRefinePrompt, buildTranslatePrompt, buildTranslateUserPrompt, buildUserPrompt } from './llm-refine';
 
 export interface GeminiConfig {
   apiKey: string;
@@ -22,7 +22,7 @@ export class GeminiProvider implements IRefinementProvider {
       for (let r = await gen.next(); !r.done; r = await gen.next()) { text += r.value; }
       return { refinedText: text || rawText, originalText: rawText, provider: `gemini/${this.config.model}`, durationMs: performance.now() - t0 };
     } catch {
-      return this.callAPI(systemPrompt, rawText, t0);
+      return this.callAPI(systemPrompt, buildUserPrompt(rawText), t0);
     }
   }
 
@@ -30,7 +30,7 @@ export class GeminiProvider implements IRefinementProvider {
     const t0 = performance.now();
     const systemPrompt = buildRefinePrompt(context);
     const baseUrl = (this.config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
-    const model = this.config.model || 'gemini-2.0-flash';
+    const model = this.config.model || 'gemini-2.5-flash';
     const url = `${baseUrl}/models/${model}:streamGenerateContent?key=${this.config.apiKey}&alt=sse`;
     const timeout = this.config.timeoutMs || 30000;
 
@@ -104,12 +104,12 @@ export class GeminiProvider implements IRefinementProvider {
   async translate(text: string, targetLang: string, context?: RefineContext): Promise<RefinementResult> {
     const t0 = performance.now();
     const systemPrompt = buildTranslatePrompt(targetLang, context?.dictionary);
-    return this.callAPI(systemPrompt, text, t0);
+    return this.callAPI(systemPrompt, buildTranslateUserPrompt(text, targetLang), t0);
   }
 
-  private async callAPI(systemPrompt: string, userText: string, t0: number): Promise<RefinementResult> {
+  private async callAPI(systemPrompt: string, userMessage: string, t0: number): Promise<RefinementResult> {
     const baseUrl = (this.config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
-    const model = this.config.model || 'gemini-2.0-flash';
+    const model = this.config.model || 'gemini-2.5-flash';
     const url = `${baseUrl}/models/${model}:generateContent?key=${this.config.apiKey}`;
     const timeout = this.config.timeoutMs || 30000;
 
@@ -118,8 +118,8 @@ export class GeminiProvider implements IRefinementProvider {
 
     try {
       const body: any = {
-        contents: [{ parts: [{ text: buildUserPrompt(userText) }] }],
-        generationConfig: { maxOutputTokens: userText.length < 30 ? 256 : 1024, temperature: 0.1 },
+        contents: [{ parts: [{ text: userMessage }] }],
+        generationConfig: { maxOutputTokens: userMessage.length < 30 ? 256 : 1024, temperature: 0.1 },
       };
 
       if (systemPrompt) {
@@ -139,11 +139,11 @@ export class GeminiProvider implements IRefinementProvider {
       }
 
       const json: any = await res.json();
-      const refinedText = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || userText;
+      const refinedText = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || userMessage;
 
       return {
         refinedText,
-        originalText: userText,
+        originalText: userMessage,
         provider: `gemini/${model}`,
         durationMs: performance.now() - t0,
       };

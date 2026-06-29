@@ -23,6 +23,7 @@ const D: Record<string, LocaleMap> = {
   'section.keybind':    { 'zh-CN': '快捷键','zh-TW': '快捷鍵',en: 'Keybinds',   ja: 'キー',     ko: '단축키' },
   'section.translate':  { 'zh-CN': '翻译',  'zh-TW': '翻譯',  en: 'Translation', ja: '翻訳',    ko: '번역' },
   'section.options':    { 'zh-CN': '选项',  'zh-TW': '選項',  en: 'Options',     ja: 'オプション', ko: '옵션' },
+  'section.refine':     { 'zh-CN': '润色',  'zh-TW': '潤色',  en: 'Refine',      ja: '補正',     ko: '교정' },
   'section.llm':        { 'zh-CN': 'AI 润色','zh-TW': 'AI 潤色',en: 'AI Refine', ja: 'AI 補正',  ko: 'AI 교정' },
   'section.about':      { 'zh-CN': '关于',  'zh-TW': '關於',  en: 'About',       ja: '情報',     ko: '정보' },
   'section.update':     { 'zh-CN': '更新',  'zh-TW': '更新',  en: 'Update',      ja: 'アップデート', ko: '업데이트' },
@@ -53,6 +54,7 @@ const D: Record<string, LocaleMap> = {
   // ── Settings: Options ──────────────────────────────────
   'settings.launchAtStartup': { 'zh-CN': '开机自启',   'zh-TW': '開機自啟',   en: 'Launch at startup',  ja: '起動時に実行', ko: '시작 시 실행' },
   'settings.muteOnRecord':    { 'zh-CN': '录音时静音', 'zh-TW': '錄音時靜音', en: 'Mute while recording', ja: '録音中ミュート', ko: '녹음 중 음소거' },
+  'settings.uiSoundEnabled': { 'zh-CN': '音效',       'zh-TW': '音效',       en: 'Sound effects',     ja: 'サウンド',      ko: '사운드' },
   'settings.useDictionary':   { 'zh-CN': '启用词典',   'zh-TW': '啟用詞典',   en: 'Use dictionary',      ja: '辞書を使用',     ko: '사전 사용' },
   'settings.micDevice':       { 'zh-CN': '麦克风',     'zh-TW': '麥克風',     en: 'Microphone',          ja: 'マイク',          ko: '마이크' },
   'settings.micDevice.default':{ 'zh-CN': '系统默认',   'zh-TW': '系統默認',   en: 'System default',      ja: 'システム既定',     ko: '시스템 기본값' },
@@ -60,6 +62,10 @@ const D: Record<string, LocaleMap> = {
 
   // ── Settings: LLM ──────────────────────────────────────
   'settings.enableRefine':         { 'zh-CN': '启用润色',     'zh-TW': '啟用潤色',     en: 'Enable refine',     ja: '補正を有効化', ko: '교정 활성화' },
+  'settings.polishMode':           { 'zh-CN': '润色风格',     'zh-TW': '潤色風格',     en: 'Polish style',      ja: '補正スタイル',  ko: '교정 스타일' },
+  'polishMode.light':              { 'zh-CN': '轻量',         'zh-TW': '輕量',         en: 'Light',             ja: '軽量',          ko: '라이트' },
+  'polishMode.balanced':           { 'zh-CN': '均衡',         'zh-TW': '均衡',         en: 'Balanced',          ja: '均衡',          ko: '균형' },
+  'polishMode.deep':               { 'zh-CN': '结构化',       'zh-TW': '結構化',       en: 'Structured',        ja: '構造化',        ko: '구조화' },
   'settings.apiKey':               { 'zh-CN': 'API Key',      'zh-TW': 'API Key',      en: 'API Key',           ja: 'APIキー',       ko: 'API 키' },
   'settings.apiKeyPlaceholder':    { 'zh-CN': 'sk-...',       'zh-TW': 'sk-...',       en: 'sk-...',            ja: 'sk-...',        ko: 'sk-...' },
   'settings.model':                { 'zh-CN': '模型',         'zh-TW': '模型',         en: 'Model',             ja: 'モデル',        ko: '모델' },
@@ -103,9 +109,9 @@ const D: Record<string, LocaleMap> = {
   'history.noResults':        { 'zh-CN': '无匹配结果', 'zh-TW': '無匹配結果', en: 'No results', ja: '結果なし', ko: '결과 없음' },
 
   // ── Dictionary tab ─────────────────────────────────────
-  'dictionary.description': { 'zh-CN': '添加专业词汇、人名、品牌名等专属词汇。ASR 识别时会优先匹配，LLM 润色时也会保留不修改。', 'zh-TW': '添加專業詞彙、人名、品牌名等專屬詞彙。ASR 識別時會優先匹配，LLM 潤色時也會保留不修改。', en: 'Add proper nouns, technical terms, brand names. ASR will match them with priority, and LLM refinement will preserve them unchanged.', ja: '固有名詞、技術用語、ブランド名を追加。ASRが優先マッチングし、LLM補正時にも保持されます。', ko: '고유 명사, 기술 용어, 브랜드명을 추가하세요. ASR이 우선 매칭하고 LLM 교정 시에도 보존됩니다.' },
+  'dictionary.description': { 'zh-CN': '添加专有名词、术语。系统会自动识别 ASR 的同音误识别（如 "k 8 s"→Kubernetes），并将其替换为正确写法，然后再送 LLM 润色。', 'zh-TW': '添加專有名詞、術語。系統會自動識別 ASR 的同音誤識別（如 "k 8 s"→Kubernetes），並將其替換為正確寫法，然後再送 LLM 潤色。', en: 'Add proper nouns and technical terms. The system auto-detects ASR homophone errors (e.g. "k eight s"→Kubernetes) via fuzzy matching and corrects them before LLM refinement.', ja: '固有名詞や技術用語を追加。システムがASRの同音異義語誤認識（例：「k eight s」→Kubernetes）を自動検出し、LLM補正前に修正します。', ko: '고유 명사와 기술 용어를 추가하세요. 시스템이 ASR 동음이의어 오류(예: "k eight s"→Kubernetes)를 자동 감지하여 LLM 교정 전에 수정합니다.' },
   'dictionary.word':            { 'zh-CN': '添加词汇', 'zh-TW': '添加詞彙', en: 'Add term', ja: '用語を追加', ko: '용어 추가' },
-  'dictionary.wordPlaceholder': { 'zh-CN': '输入你想说的词，如 SQL、ChatGPT', 'zh-TW': '輸入你想說的詞，如 SQL、ChatGPT', en: 'Enter a term, e.g. SQL, Kubernetes', ja: '用語を入力（例: SQL, Kubernetes）', ko: '용어 입력 (예: SQL, Kubernetes)' },
+  'dictionary.wordPlaceholder': { 'zh-CN': '正确写法，如 Kubernetes、SQL', 'zh-TW': '正確寫法，如 Kubernetes、SQL', en: 'Correct spelling, e.g. Kubernetes, SQL', ja: '正しい表記（例: Kubernetes, SQL）', ko: '올바른 표기 (예: Kubernetes, SQL)' },
   'dictionary.add':                    { 'zh-CN': '添加', 'zh-TW': '添加', en: 'Add',    ja: '追加',   ko: '추가' },
   'dictionary.delete':                 { 'zh-CN': '删除', 'zh-TW': '刪除', en: 'Delete', ja: '削除',   ko: '삭제' },
 
@@ -137,7 +143,7 @@ const D: Record<string, LocaleMap> = {
 
   // ── About ──────────────────────────────────────────────
   'about.appName':     { 'zh-CN': 'TingMo 听墨', 'zh-TW': 'TingMo 聽墨', en: 'TingMo 听墨', ja: 'TingMo 听墨', ko: 'TingMo 听墨' },
-  'about.description': { 'zh-CN': '桌面 AI 语音输入法。按快捷键开始录音，再次按下停止，语音自动转文字注入光标位置。', 'zh-TW': '桌面 AI 語音輸入法。按快捷鍵開始錄音，再次按下停止，語音自動轉文字注入游標位置。', en: 'Desktop AI voice input. Press hotkey to record, press again to stop. Speech is converted to text and injected at cursor.', ja: 'デスクトップAI音声入力。ホットキーで録音開始、もう一度押すと停止。音声がテキストに変換されカーソル位置に注入されます。', ko: '데스크톱 AI 음성 입력. 단축키로 녹음 시작, 다시 누르면 중지. 음성이 텍스트로 변환되어 커서 위치에 입력됩니다.' },
+  'about.description': { 'zh-CN': '在任意应用中，按下快捷键说话，语音自动转为文字注入光标。支持离线与云端双引擎识别，内置 AI 润色、词典纠错和翻译功能。', 'zh-TW': '在任意應用中，按下快捷鍵說話，語音自動轉為文字注入游標。支援離線與雲端雙引擎識別，內建 AI 潤色、詞典糾錯和翻譯功能。', en: 'Press a hotkey and speak — your words are typed at the cursor in any app. Dual-engine recognition (offline + cloud), with built-in AI polish, dictionary correction, and translation.', ja: '任意のアプリでホットキーを押して話すと、音声が自動的に文字に変換されカーソル位置に入力されます。オフラインとクラウドのデュアルエンジン認識、AI補正、辞書訂正、翻訳機能を内蔵。', ko: '모든 앱에서 단축키를 누르고 말하면 음성이 자동으로 텍스트로 변환되어 커서에 입력됩니다. 오프라인+클라우드 듀얼 엔진 인식, AI 교정, 사전 보정 및 번역 기능 내장.' },
 
   // ── Update ──────────────────────────────────────────
   'update.check':          { 'zh-CN': '检查更新',   'zh-TW': '檢查更新',   en: 'Check for updates',    ja: '更新を確認',          ko: '업데이트 확인' },

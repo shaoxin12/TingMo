@@ -8,3 +8,7 @@ models/
 Thumbs.db
 build-out/
 nul
+.claude/settings.local.json
+.claude/worktrees/
+.env
+.env.*

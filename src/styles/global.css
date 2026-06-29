@@ -32,13 +32,6 @@ html, body, #root {
 }
 
 /* ── Glassmorphism ────────────────────────────────────────── */
-.glass {
-  background: var(--bg);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-}
 
 /* ── Animations ───────────────────────────────────────────── */
 @keyframes breathe {
@@ -88,72 +81,14 @@ html, body, #root {
 }
 
 /* ── Floating Window ──────────────────────────────────────── */
-.floating-window {
-  width: 300px;
-  height: 200px;
-  border-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  -webkit-app-region: drag;
-}
 
-.floating-window.success-flash {
-  animation: border-flash 1.5s ease-out;
-}
 
-.floating-window.error-flash {
-  border-color: var(--error) !important;
-  box-shadow: 0 0 12px rgba(255, 85, 85, 0.4);
-  animation: error-pulse 1.5s ease-out;
-}
 
-@keyframes error-pulse {
-  0% {
-    border-color: var(--error);
-    box-shadow: 0 0 4px rgba(255, 85, 85, 0.3);
-  }
-  30% {
-    border-color: var(--error);
-    box-shadow: 0 0 16px rgba(255, 85, 85, 0.6);
-  }
-  100% {
-    border-color: rgba(255, 85, 85, 0.1);
-    box-shadow: 0 0 0px rgba(255, 85, 85, 0);
-  }
-}
 
 /* ── Breathing Light ──────────────────────────────────────── */
-.breathing-light {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  -webkit-app-region: no-drag;
-}
 
-.breathing-light.idle { display: none; }
 
-.breathing-light.recording {
-  background: var(--primary);
-  animation: breathe 2s ease-in-out infinite;
-}
 
-.breathing-light.recognizing {
-  background: transparent;
-  border: 2px solid var(--secondary);
-  border-top-color: transparent;
-  animation: rotate-ring 1s linear infinite;
-}
-
-.breathing-light.error {
-  background: var(--error);
-  box-shadow: 0 0 12px var(--error);
-}
 
 /* ── Waveform ─────────────────────────────────────────────── */
 .waveform-container {
@@ -411,23 +346,20 @@ html, body, #root {
 /* ── Main Content ───────────────────────────────────────── */
 .nb-main {
   overflow-y: auto;
-  padding: 0 28px 32px;
+  scrollbar-gutter: stable;
+  padding: 0 40px 32px 28px;
+  margin-right: 5px;
   background: #fff;
 }
 
-.nb-main::-webkit-scrollbar {
-  width: 5px;
-}
+.nb-main::-webkit-scrollbar { width: 18px; }
+.nb-main::-webkit-scrollbar-track { background: #fff; }
 .nb-main::-webkit-scrollbar-thumb {
-  background: #ddd;
-  border-radius: 3px;
+  background: #000;
+  border: 3px solid #fff;
+  min-height: 40px;
 }
-.nb-main::-webkit-scrollbar-thumb:hover {
-  background: #bbb;
-}
-.nb-main::-webkit-scrollbar-track {
-  background: transparent;
-}
+.nb-main::-webkit-scrollbar-thumb:hover { background: #FF5A1F; }
 
 /* ── Section ────────────────────────────────────────────── */
 .nb-section {
@@ -1015,9 +947,13 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   gap: 0;
+  padding: 0 12px;           /* symmetric edge spacing */
   background: #161618;
   -webkit-app-region: drag;
   overflow: hidden;
+  transition: width 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+              height 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+              border-radius 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /* ── Animations ────────────────────────────────────────── */
@@ -1046,7 +982,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 10px;
+  margin-right: 8px;          /* gap between dot and bars */
   opacity: 0;
   transform: scale(0.6);
   transition: opacity 0.22s ease, transform 0.22s ease;
@@ -1095,10 +1031,10 @@ html, body, #root {
 }
 .capsule-bar-item {
   width: 2px;
-  min-height: 3px;
+  min-height: 0;
   border-radius: 1px;
   background: #fff;
-  transition: height 0.07s ease, background 0.3s ease;
+  transition: height 0.03s linear, background 0.3s ease;
 }
 
 /* Recognizing sweep — shimmer across capsule */
@@ -1163,13 +1099,14 @@ html, body, #root {
 
 /* Translate badge */
 .capsule-badge {
-  margin-right: 6px;
-  font-size: 9px;
+  margin-right: 12px;
+  margin-left: 8px;
+  font-size: 10px;
   font-weight: 700;
   color: #000;
   background: #FF5A1F;
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
   letter-spacing: 0.06em;
   flex-shrink: 0;
 }
@@ -1190,50 +1127,53 @@ html, body, #root {
   100% { opacity: 0; }
 }
 
-/* Error panel inside dark capsule — compact single row */
-.capsule .error-panel {
+/* ── Capsule error — centered, static notification ───── */
+.capsule.capsule-error {
   width: 100%;
-  height: 40px;
-  flex-direction: row;
+  height: 100%;
+  border-radius: 12px;
+  padding: 0 16px;
+  gap: 0;
+  background: radial-gradient(ellipse at 20% 50%, rgba(255,69,58,0.05) 0%, transparent 60%),
+              linear-gradient(135deg, #1c1c1e 0%, #161618 100%);
+}
+
+.capsule-error-panel {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  background: transparent;
+  justify-content: center;
+  gap: 9px;
+  flex: 1;
   -webkit-app-region: no-drag;
+  min-width: 0;
 }
-.capsule .error-panel .error-text {
-  font-size: 11px;
-  color: rgba(255,255,255,0.8);
-  max-width: 80px;
-  flex-shrink: 1;
-}
-.capsule .error-panel .error-hint {
-  display: none;
-}
-.capsule .error-panel .error-buttons {
+
+.capsule-error-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 69, 58, 0.12);
+  color: #FF453A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  gap: 4px;
+  box-shadow: 0 0 0 1px rgba(255, 69, 58, 0.20);
 }
-.capsule .error-panel button {
-  height: 24px;
-  border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.9);
-  font-family: inherit;
-  font-size: 10px;
-  padding: 0 10px;
-  cursor: pointer;
+
+.capsule-error-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.85);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.capsule .error-panel button:hover {
-  background: rgba(255,255,255,0.15);
-}
-.capsule .error-panel button.retry-btn {
-  border-color: #FF5A1F;
-  background: rgba(255, 90, 31, 0.15);
-}
-.capsule .error-panel button.retry-btn:hover {
-  background: rgba(255, 90, 31, 0.25);
+
+/* Hide indicator dot in error state — panel content is self-sufficient */
+.capsule-indicator.error {
+  display: none;
 }
 
 /* ── Dictionary tags ──────────────────────────────────────── */

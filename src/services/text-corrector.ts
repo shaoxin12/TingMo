@@ -139,6 +139,48 @@ const HOMOPHONE_MAP: [string, string][] = [
   ['德维奥普斯', 'DevOps'],
   ['CICD', 'CI/CD'],
   ['C I C D', 'CI/CD'],
+
+  // Config / files
+  ['抗费格', 'config'],
+  ['康费格', 'config'],
+  ['肯费格', 'config'],
+  ['抗飞鸽', 'config'],
+  ['抗飞哥', 'config'],
+  ['扛费格', 'config'],
+  ['克劳德', 'Claude'],
+
+  // File extensions — common spoken patterns
+  ['点md', '.md'],
+  ['点js', '.js'],
+  ['点ts', '.ts'],
+  ['点json', '.json'],
+  ['点yaml', '.yaml'],
+  ['点yml', '.yml'],
+  ['点py', '.py'],
+  ['点java', '.java'],
+  ['点go', '.go'],
+  ['点rs', '.rs'],
+  ['点cpp', '.cpp'],
+  ['点html', '.html'],
+  ['点css', '.css'],
+  ['点txt', '.txt'],
+  ['点pdf', '.pdf'],
+  ['点git', '.git'],
+  ['点env', '.env'],
+  ['点toml', '.toml'],
+  ['点lock', '.lock'],
+  ['点svg', '.svg'],
+  ['点png', '.png'],
+  ['点jpg', '.jpg'],
+  ['点csv', '.csv'],
+  ['点xml', '.xml'],
+  ['点sql', '.sql'],
+  ['点sh', '.sh'],
+  ['点docker', '.docker'],
+  ['点editor', '.editor'],
+  ['点eslint', '.eslint'],
+  ['点prettier', '.prettier'],
+  ['点gitignore', '.gitignore'],
 ];
 
 // ── Letter-merge Pattern ──────────────────────────────────────
@@ -278,6 +320,14 @@ export function correctText(raw: string, dictionary?: string[]): CorrectionResul
       }
     }
   }
+
+  // 1.5. Chinese "dot" before English letters → period (file extension pattern)
+  // e.g. "cloud点md" → "cloud.md", "文件点js" → "文件.js"
+  text = text.replace(/([一-鿿\w])点([a-zA-Z][a-zA-Z0-9]{0,10})(?![一-鿿])/g, (_full, before, ext) => {
+    const result = `${before}.${ext}`;
+    if (result !== _full) changes.push({ from: _full, to: result, reason: 'dot-to-period' });
+    return result;
+  });
 
   // 2. Letter merging: "G P T" → "GPT"
   text = text.replace(LETTER_MERGE_RE, (_full, first, rest) => {

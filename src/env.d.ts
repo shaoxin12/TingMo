@@ -10,15 +10,20 @@ interface TingMoAPI {
   finishRecording: () => Promise<void>;
   cancelRecording: () => Promise<void>;
   reportCaptureError: (message: string) => Promise<void>;
+  resizeFloating: (width: number, height: number) => Promise<void>;
   copyText: (text: string) => Promise<void>;
+  playSound: (type: string) => Promise<void>;
   asrChunk: (wavBuf: ArrayBuffer) => Promise<string>;
+  asrStreamStart: (sampleRate: number, lang: string) => Promise<void>;
+  asrStreamSend: (wavBuf: ArrayBuffer) => Promise<void>;
+  asrStreamEnd: () => Promise<string>;
   transcribe: (audioBuffer: ArrayBuffer, language?: string, opts?: {
     translate?: boolean; translateTarget?: string; dictionary?: Array<{word: string; replace: string}>;
-    polishMode?: string; customPrompt?: string; preAsrText?: string;
+    polishMode?: string; preAsrText?: string;
   }) => Promise<void>;
   onTranslateMode: (cb: (data: { enabled: boolean }) => void) => () => void;
   onRefineFailed: (cb: (data: { error: string }) => void) => () => void;
-  setTranslateModifier: (keyName: string) => Promise<void>;
+  setTranslateHotkey: (hotkey: string) => Promise<void>;
   setRecordingHotkey: (keyName: string) => Promise<void>;
   setHotkeyPaused: (paused: boolean) => Promise<void>;
   getStats: () => Promise<{ totalDurationMs: number; totalCharCount: number; totalSessions: number }>;

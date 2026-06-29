@@ -47,16 +47,20 @@ const GetModuleHandleW = kernel32.func('GetModuleHandleW', 'void *', ['str16']);
 const KEYEVENTF_KEYUP = 0x0002;
 const keybd_event = user32.func('keybd_event', 'void', ['uint8', 'uint8', 'uint32', 'uintptr']);
 
-function injectKeyUp(): void {
-  keybd_event(currentVk, 0, KEYEVENTF_KEYUP, 0);
+function injectKeyUp(vk?: number): void {
+  keybd_event(vk ?? currentVk, 0, KEYEVENTF_KEYUP, 0);
 }
 
 let pressCallback: (() => void) | null = null;
 let releaseCallback: (() => void) | null = null;
 let escCallback: (() => void) | null = null;
+let translateCallback: (() => void) | null = null;
+let translateReleaseCallback: (() => void) | null = null;
 let hookHandle: unknown = null;
 let hookProc: unknown = null;
 let wasPressed = false;
+let wasHandled = false; // guard against auto-repeat re-trigger
+let wasTranslatePressed = false;
 let wasEscPressed = false;
 let hookPaused = false;
 
@@ -73,6 +77,23 @@ export function setHotkeyReleaseCallback(cb: () => void): void {
 }
 
 let currentVk: number = VK_RMENU;
+// Translate hotkey combo: array of VK codes that must ALL be held simultaneously.
+// Empty array = disabled. "右 Ctrl" = [VK_RCONTROL], "左 Ctrl + 左 Alt" = [VK_LCONTROL, VK_LMENU]
+let translateCombo: number[] = [];
+let translateComboTriggered = false;
+
+export function setTranslateCombo(vks: number[]): void {
+  translateCombo = vks;
+  translateComboTriggered = false;
+}
+
+export function setTranslateCallback(cb: () => void): void {
+  translateCallback = cb;
+}
+
+export function setTranslateReleaseCallback(cb: () => void): void {
+  translateReleaseCallback = cb;
+}
 
 export function setEscCallback(cb: () => void): void {
   escCallback = cb;
@@ -111,15 +132,42 @@ export function startHotkey(vkCode?: number): void {
 
       wasPressed = action.nextWasPressed;
       if (action.triggerPressed) {
+        // Ignore auto-repeat key-downs: only fire once per press cycle
+        if (wasHandled) {
+          return 1;
+        }
+        wasHandled = true;
         pressCallback?.();
         // Inject synthetic key-up so Windows doesn't think the hotkey is stuck.
-        // The injected event has LLKHF_INJECTED set → our hook passes it through.
         injectKeyUp();
       }
-      if (action.triggerReleased) releaseCallback?.();
+      if (action.triggerReleased) {
+        wasHandled = false;
+        releaseCallback?.();
+      }
 
       if (action.consume) {
         return 1;
+      }
+
+      // Translate hotkey combo detection
+      if (translateCombo.length > 0 && event && !wasHandled) {
+        const vk = event.vkCode ?? 0;
+        if (translateCombo.includes(vk)) {
+          // Check if ALL keys in the combo are currently held
+          const allHeld = translateCombo.every(cvk => (GetAsyncKeyState(cvk) & 0x8000) !== 0);
+          if (allHeld && !translateComboTriggered) {
+            translateComboTriggered = true;
+            // Inject key-up for every key in the combo so they don't stick
+            for (const cvk of translateCombo) injectKeyUp(cvk);
+            translateCallback?.();
+            return 1;
+          }
+          if (!allHeld && translateComboTriggered) {
+            translateComboTriggered = false;
+            translateReleaseCallback?.();
+          }
+        }
       }
 
       // Esc key handling — detect but don't consume

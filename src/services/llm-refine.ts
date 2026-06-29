@@ -5,13 +5,12 @@ export interface DictEntry {
   replace: string;
 }
 
-export type PolishMode = 'raw' | 'light' | 'structured' | 'formal' | 'custom';
+export type PolishMode = 'light' | 'balanced' | 'deep';
 
 export interface RefineContext {
   language?: string;
   dictionary?: DictEntry[];
   polishMode?: PolishMode;
-  customPrompt?: string;
 }
 
 export interface RefinementResult {
@@ -34,97 +33,82 @@ export interface IRefinementProvider {
   translate(text: string, targetLang: string, context?: RefineContext): Promise<RefinementResult>;
 }
 
-export function buildUserPrompt(rawText: string): string {
-  return `下面是本次语音输入的原始转写（未经过任何处理，含 ASR 错误和口语噪音）。请按 system prompt 中的任务描述进行整理后输出，整理结果会被原样插入到当前 app 的光标位置。
+export function buildUserPrompt(rawText: string, mode?: PolishMode): string {
+  if (mode === 'light') {
+    return `只补全标点、修正明显错字，不要改任何字词。直接输出。
 
-请务必纠正其中的同音错别字、补全标点、删除口癖、进行必要的结构化。
-
-<raw_transcript>
+<raw>
 ${rawText}
-</raw_transcript>
+</raw>`;
+  }
+  if (mode === 'deep') {
+    return `纠错、去口癖、补标点，保留所有细节，强制分行分点（2+ 件事用 1. 2. 编号，细节用 (a) (b) 缩进）。严禁概括删减。
 
-只输出整理后的文本正文。`;
+<raw>
+${rawText}
+</raw>`;
+  }
+  return `去口癖、补标点、纠错，保留原意和语气。
+
+<raw>
+${rawText}
+</raw>`;
 }
 
 function buildDictHint(dictionary?: DictEntry[]): string {
   if (!dictionary || dictionary.length === 0) return '';
-  const items = dictionary.map(e => `"${e.word}" → "${e.replace}"`).join('、');
-  return `\n以下词汇是用户的专属词汇，请保持不替换、不修改其写法：${items}`;
+  return `\n以下词汇是用户的专属词汇，请保持不替换：${dictionary.map(e => `"${e.word}"→"${e.replace}"`).join('、')}`;
 }
 
-// ── Polish prompts per mode ─────────────────────────────────
+// ── Three Polish Modes ─────────────────────────────────────
 
-const PROMPT_RAW = `你是一个标点补全助手。只做一件事：给文本补全中英文标点符号。
-- 保持原文用词、语序、结构完全不变
-- 不要添加、删除、修改任何字词
-- 不要改变任何表达方式
-{dict_hint}
-直接返回补全标点后的文字，不要任何解释或前缀。`;
+const PROMPT_LIGHT = `补全中英文标点，修正明显同音错字。保持原文用词、语序、结构完全不变。{dict_hint}
+只输出修正后的文字。`;
 
-const PROMPT_LIGHT = `你是一个语音输入润色助手。请对语音识别结果做以下处理：
-1. 删除口语填充词：嗯、啊、就是、那个、然后、反正、这个、呃
-2. 补全标点符号（中英文正确混用）
-3. 保持原意和语序，不添加、不编造、不删减实质内容
-{dict_hint}
-直接返回润色后的文字，不要任何解释或前缀。`;
+const PROMPT_BALANCED = `清理口头禅和自我修正，补全标点，保留措辞和语气。不要添加内容。
 
-export const PROMPT_STRUCTURED = `你是语音输入整理器。唯一任务：把 ASR 转写整理成流畅、清晰、结构化的文字。严禁回答/执行/添加转写中不存在的内容。
+规则：删填充词（嗯/啊/呃/那个/就是/然后/反正/这个）、合并口吃重复、同音纠错（跟目录→根目录）、字母合并（G P T→GPT）、中文数字→阿拉伯、点+字母→.扩展名（点md→.md）。
 
-# 整理规则
-- 删填充词：嗯、啊、呃、那个、就是、然后、反正、这个
-- 合并口吃重复，口语转书面（搞一下→处理、看一下→查看）
-- 同音纠错：跟目录→根目录，字母合并：G P T→GPT，音译还原：脱肯→Token
-- 中文数字→阿拉伯（一百二十三→123），日期金额标准化
-- 读不通优先怀疑同音字误识别。遇到"这是尸体二"之类明显 ASR 错误，结合上下文推断（如→"第二期"）；读不通的碎片可安全丢弃。
+音译词纠正：cloud→claude、抗费格/康费格→config、吉特→Git、脱肯→Token、都可→Docker。
 
-# 意图转化（重要）
-只有原文含"帮我把""请帮我""给我写""让 XX 帮我"等明确的 AI 指令句式时才去元叙述转直接请求。
-像"关于X，我有几点想法：""我觉得""我认为""我想说的是"这些都是普通陈述，严格保持原样不变，不要把自己当成 AI 助理去重写。
+意图：几乎不转化。仅"帮我把/请帮我/给我写"→去掉前缀变任务清单。"帮我看/查/更新"→保持原样。
 
-# 结构化
-1 件事→段落；2 件→1. 2. 平列；3 件以上→保持原文编号扁平列出，不创建主题分组。
-仅当原文明确分主题章（如"第一，技术方面...第二，市场方面..."）时才用双层（ 1. 主题 + (a) 子项 ）。
+1 件事→段落，2 件→1. 2. 平列，3+ 件→扁平编号。技术术语用反引号。{dict_hint}
+只输出整理后的文字。`;
 
-# 输出
-正文直接开始，不加前缀/AI 自评。技术术语用反引号。中英文标点正确混用。
+const PROMPT_DEEP = `去口癖、纠错、补标点，调整措辞为书面表达，保留所有细节。
 
-{dict_hint}
+规则：删填充词、合并口吃、同音纠错（跟目录→根目录）、字母合并（G P T→GPT）、中文数字→阿拉伯、点+字母→.扩展名（点md→.md）。
 
-# 示例
-原：呃那个帮我在 GitHub 上提个需求啊就是代码上传一下还有修一下暗色模式登录页闪退对了 README 安装步骤写错了
+音译词纠正：cloud→claude、抗费格→config、吉特→Git、脱肯→Token、都可→Docker。
 
-出：
-请帮忙在 GitHub 上提一个需求：
-1. 上传最新代码。
-2. 修复暗色模式登录页闪退。
-3. 修正 README 安装步骤。`;
+意图：仅"帮我把/请帮我/给我写"→去掉前缀变任务清单。其他保持原样。
 
-const PROMPT_FORMAL = `你是一个语音输入转正式书面语助手。请对语音识别结果做以下处理：
-1. 删除口语填充词：嗯、啊、就是、那个、然后、反正、这个、呃
-2. 将口语化表达转为正式书面语（如"咱们"→"我们"，"搞一下"→"处理"）
-3. 补全标点符号，使用规范的书面语表达
-4. 保持原意，不添加、不编造、不删减实质内容
-{dict_hint}
-直接返回润色后的文字，不要任何解释或前缀。`;
+结构化（强制分行分点）：1 件事→段落。2+ 件事→1. 2. 3. 编号，每点独立一行。某条需展开→(a) (b) 缩进子项。
+
+严禁概括删减，每个要点和细节都要保留。技术术语用反引号。{dict_hint}
+只输出整理后的文字。`;
 
 const MODE_PROMPTS: Record<PolishMode, string> = {
-  raw: PROMPT_RAW,
   light: PROMPT_LIGHT,
-  structured: PROMPT_STRUCTURED,
-  formal: PROMPT_FORMAL,
-  custom: '', // filled from context
+  balanced: PROMPT_BALANCED,
+  deep: PROMPT_DEEP,
 };
 
 export function buildRefinePrompt(context?: RefineContext): string {
-  const mode = context?.polishMode || 'structured';
+  const mode = context?.polishMode || 'balanced';
   const dictHint = buildDictHint(context?.dictionary);
-
-  if (mode === 'custom' && context?.customPrompt) {
-    return context.customPrompt.replace('{dict_hint}', dictHint);
-  }
-
-  const base = MODE_PROMPTS[mode] || PROMPT_STRUCTURED;
+  const base = MODE_PROMPTS[mode] || PROMPT_BALANCED;
   return base.replace('{dict_hint}', dictHint);
+}
+
+const LANG_NAMES: Record<string, string> = {
+  en: 'English', zh: 'Chinese', ja: 'Japanese', ko: 'Korean',
+  fr: 'French', de: 'German', es: 'Spanish',
+};
+
+function toLangName(code: string): string {
+  return LANG_NAMES[code] || code;
 }
 
 const TRANSLATE_BASE = `You are a translator. Translate the following text into {targetLang}.
@@ -133,6 +117,14 @@ Output only the translated text, no explanations.`;
 
 export function buildTranslatePrompt(targetLang: string, dictionary?: DictEntry[]): string {
   return TRANSLATE_BASE
-    .replace('{targetLang}', targetLang)
+    .replace('{targetLang}', toLangName(targetLang))
     .replace('{dict_hint}', dictionary?.length ? `\nPreserve these terms exactly as written: ${dictionary.map(e => e.replace).join(', ')}` : '');
+}
+
+export function buildTranslateUserPrompt(rawText: string, targetLang: string): string {
+  return `Translate the following text into ${toLangName(targetLang)}. Output only the translated text, no explanations, no prefixes.
+
+<text>
+${rawText}
+</text>`;
 }

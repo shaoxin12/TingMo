@@ -24,6 +24,7 @@ export interface SettingsState {
   translateTarget: TranslateLang;
   dictionary: DictEntry[];
   refineEnabled: boolean;
+  polishMode: string; // 'fast' | 'standard' | 'deep'
 
   // LLM — provider-aware
   llmProvider: string;
@@ -37,6 +38,7 @@ export interface SettingsState {
   asrCloudApiKey: string;
   selectedMicDeviceId: string;
   uiLanguage: UILanguage;
+  uiSoundEnabled: boolean;
   _hydrated: boolean;
 
   setAsrProvider: (p: ASRProvider) => void;
@@ -53,6 +55,7 @@ export interface SettingsState {
   resetHotkey: () => void;
   resetTranslateHotkey: () => void;
   setRefineEnabled: (enabled: boolean) => void;
+  setPolishMode: (mode: string) => void;
 
   setLlmProvider: (p: string) => void;
   setLlmApiKey: (key: string) => void;
@@ -64,6 +67,7 @@ export interface SettingsState {
   setAsrCloudApiKey: (key: string) => void;
   setSelectedMicDeviceId: (id: string) => void;
   setUiLanguage: (lang: UILanguage) => void;
+  setUiSoundEnabled: (enabled: boolean) => void;
   hydrate: () => Promise<void>;
 }
 
@@ -89,6 +93,7 @@ function schedulePersist(state: SettingsState): void {
         translateTarget: state.translateTarget,
         dictionary: state.dictionary,
         refineEnabled: state.refineEnabled,
+        polishMode: state.polishMode,
         selectedMicDeviceId: state.selectedMicDeviceId,
         uiLanguage: state.uiLanguage,
         llmProvider: state.llmProvider,
@@ -98,6 +103,7 @@ function schedulePersist(state: SettingsState): void {
         asrCloudProvider: state.asrCloudProvider,
         asrCloudModel: state.asrCloudModel,
         asrCloudApiKey: state.asrCloudApiKey,
+        uiSoundEnabled: state.uiSoundEnabled,
       });
     }
   }, 300);
@@ -115,6 +121,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   translateTarget: 'en',
   dictionary: [],
   refineEnabled: false,
+  polishMode: 'balanced',
 
   llmProvider: 'openai',
   llmApiKey: '',
@@ -126,6 +133,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   asrCloudApiKey: '',
   selectedMicDeviceId: '',
   uiLanguage: 'zh-CN',
+  uiSoundEnabled: true,
   _hydrated: false,
 
   setAsrProvider: (p) => { set({ asrProvider: p }); schedulePersist(get()); },
@@ -142,6 +150,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   resetHotkey: () => { set({ hotkey: DEFAULT_HOTKEY }); schedulePersist(get()); },
   resetTranslateHotkey: () => { set({ translateHotkey: DEFAULT_TRANSLATE_HOTKEY }); schedulePersist(get()); },
   setRefineEnabled: (enabled) => { set({ refineEnabled: enabled }); schedulePersist(get()); },
+  setPolishMode: (mode) => { set({ polishMode: mode }); schedulePersist(get()); },
 
   setLlmProvider: (p) => {
     const preset = getLLMProvider(p);
@@ -165,6 +174,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setAsrCloudApiKey: (key) => { set({ asrCloudApiKey: key }); schedulePersist(get()); },
   setSelectedMicDeviceId: (id) => { set({ selectedMicDeviceId: id }); schedulePersist(get()); },
   setUiLanguage: (lang) => { set({ uiLanguage: lang }); schedulePersist(get()); },
+  setUiSoundEnabled: (enabled) => { set({ uiSoundEnabled: enabled }); schedulePersist(get()); },
 
   hydrate: async () => {
     try {
@@ -184,6 +194,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           translateTarget: saved.translateTarget || 'en',
           dictionary: saved.dictionary || [],
           refineEnabled: saved.refineEnabled ?? false,
+          polishMode: saved.polishMode || 'balanced',
           selectedMicDeviceId: saved.selectedMicDeviceId || '',
           uiLanguage: saved.uiLanguage || 'zh-CN',
           llmProvider: saved.llmProvider || 'openai',
@@ -193,6 +204,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           asrCloudProvider: saved.asrCloudProvider || 'openai',
           asrCloudModel: saved.asrCloudModel || 'whisper-1',
           asrCloudApiKey: saved.asrCloudApiKey || '',
+          uiSoundEnabled: saved.uiSoundEnabled ?? true,
         });
       }
     } catch (err) {

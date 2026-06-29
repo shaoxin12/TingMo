@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSettingsStore, TranslateLang, UILanguage } from '../../store/settings';
 import { useI18n } from '../../i18n/context';
 import { LLM_PROVIDERS, ASR_CLOUD_PROVIDERS, getLLMModels, getASRModels, getModelLabel } from '../../services/llm-providers';
@@ -11,11 +11,6 @@ import { UpdatePanel } from './UpdatePanel';
 import { MicDevicePicker } from './MicDevicePicker';
 
 type Tab = 'home' | 'dictionary' | 'model' | 'settings';
-
-function extractModifier(hotkey: string, fallback: string): string {
-  const parts = hotkey.split(' + ');
-  return parts.length > 1 ? parts[parts.length - 1] : fallback;
-}
 
 const TRANS_LANGS: { value: TranslateLang; label: string }[] = [
   { value: 'en', label: 'English' },
@@ -46,6 +41,7 @@ export const SettingsWindow: React.FC = () => {
     muteOnRecord, setMuteOnRecord,
     useDictionary, setUseDictionary,
     refineEnabled, setRefineEnabled,
+    polishMode, setPolishMode,
     llmProvider, setLlmProvider,
     llmApiKey, setLlmApiKey,
     llmModel, setLlmModel,
@@ -56,6 +52,7 @@ export const SettingsWindow: React.FC = () => {
     selectedMicDeviceId, setSelectedMicDeviceId,
     translateTarget, setTranslateTarget,
     uiLanguage, setUiLanguage,
+    uiSoundEnabled, setUiSoundEnabled,
   } = useSettingsStore();
 
   // ── Test button states ─────────────────────────────────
@@ -123,7 +120,7 @@ export const SettingsWindow: React.FC = () => {
     if (!didMountRef.current) return;
     const timer = setTimeout(async () => {
       await window.tingmo?.saveAppSettings({
-        refineEnabled, llmProvider, llmModel, llmBaseUrl, llmApiKey,
+        refineEnabled, polishMode, llmProvider, llmModel, llmBaseUrl, llmApiKey,
       });
       await window.tingmo?.initRefinement();
     }, 200);
@@ -197,7 +194,7 @@ export const SettingsWindow: React.FC = () => {
             ))}
           </div>
         </div>
-        <div className="nb-sidebar-bottom"><div className="nb-sidebar-ver">V0.3.0</div></div>
+        <div className="nb-sidebar-bottom"><div className="nb-sidebar-ver">V0.4.0</div></div>
       </nav>
 
       <main className="nb-main">
@@ -270,64 +267,55 @@ export const SettingsWindow: React.FC = () => {
               <h2 className="nb-section-title"><span className="nb-tag accent">{t('model.llmSection')}</span></h2>
               <div className="nb-card">
                 <div className="nb-row">
-                  <span className="nb-label">{t('settings.enableRefine')}</span>
-                  <label className="nb-toggle"><input type="checkbox" checked={refineEnabled} onChange={(e) => setRefineEnabled(e.target.checked)} /><span className="nb-toggle-slider" /></label>
+                  <span className="nb-label">{t('provider.llmService')}</span>
+                  <NbSelect
+                    value={llmProvider}
+                    options={LLM_PROVIDERS.map((p) => ({
+                      value: p.key, label: p.name,
+                      icon: <img className="nb-provider-icon" src={`./providers/${p.key}.svg`} alt="" />,
+                    }))}
+                    onChange={(v) => { setLlmProvider(v); setLlmTestResult('idle'); }}
+                  />
                 </div>
-                {refineEnabled && (
+                <div className="nb-hr" />
+                {LLM_PROVIDERS.find((p) => p.key === llmProvider)?.authType !== 'none' && (
                   <>
-                    <div className="nb-hr" />
                     <div className="nb-row">
-                      <span className="nb-label">{t('provider.llmService')}</span>
-                      <NbSelect
-                        value={llmProvider}
-                        options={LLM_PROVIDERS.map((p) => ({
-                          value: p.key, label: p.name,
-                          icon: <img className="nb-provider-icon" src={`./providers/${p.key}.svg`} alt="" />,
-                        }))}
-                        onChange={(v) => { setLlmProvider(v); setLlmTestResult('idle'); }}
-                      />
+                      <span className="nb-label">{t('settings.apiKey')}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                        <input className="nb-input" type="password" value={llmApiKey}
+                          onChange={(e) => { setLlmApiKey(e.target.value); setLlmTestResult('idle'); }}
+                          placeholder={t('settings.apiKeyPlaceholder')} style={{ flex: 1 }} />
+                        <button
+                          className={`nb-btn nb-btn-test ${llmTesting ? 'nb-btn-test-loading' : ''} ${llmTestResult === 'ok' ? 'nb-btn-test-ok' : ''} ${llmTestResult === 'fail' ? 'nb-btn-test-fail' : ''}`}
+                          onClick={handleTestLlm} disabled={llmTesting || !llmApiKey}
+                        >
+                          {llmTesting ? t('test.testing') : llmTestResult === 'ok' ? '✓' : llmTestResult === 'fail' ? '✗' : t('test.button')}
+                        </button>
+                      </div>
                     </div>
-                    <div className="nb-hr" />
-                    {LLM_PROVIDERS.find((p) => p.key === llmProvider)?.authType !== 'none' && (
+                    {llmTestResult === 'fail' && (
                       <>
-                        <div className="nb-row">
-                          <span className="nb-label">{t('settings.apiKey')}</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-                            <input className="nb-input" type="password" value={llmApiKey}
-                              onChange={(e) => { setLlmApiKey(e.target.value); setLlmTestResult('idle'); }}
-                              placeholder={t('settings.apiKeyPlaceholder')} style={{ flex: 1 }} />
-                            <button
-                              className={`nb-btn nb-btn-test ${llmTesting ? 'nb-btn-test-loading' : ''} ${llmTestResult === 'ok' ? 'nb-btn-test-ok' : ''} ${llmTestResult === 'fail' ? 'nb-btn-test-fail' : ''}`}
-                              onClick={handleTestLlm} disabled={llmTesting || !llmApiKey}
-                            >
-                              {llmTesting ? t('test.testing') : llmTestResult === 'ok' ? '✓' : llmTestResult === 'fail' ? '✗' : t('test.button')}
-                            </button>
-                          </div>
-                        </div>
-                        {llmTestResult === 'fail' && (
-                          <>
-                            <div className="nb-hr" />
-                            <div className="nb-row"><span className="nb-label" /><span className="nb-value" style={{ color: '#e00', fontSize: 12 }}>{llmTestError}</span></div>
-                          </>
-                        )}
                         <div className="nb-hr" />
+                        <div className="nb-row"><span className="nb-label" /><span className="nb-value" style={{ color: '#e00', fontSize: 12 }}>{llmTestError}</span></div>
                       </>
                     )}
-                    <div className="nb-row">
-                      <span className="nb-label">{t('settings.model')}</span>
-                      <NbSelect value={llmModel}
-                        options={getLLMModels(llmProvider).map(m => ({ value: m, label: getModelLabel(m) }))}
-                        onChange={(v) => setLlmModel(v)} />
-                    </div>
                     <div className="nb-hr" />
-                    <div className="nb-row">
-                      <span className="nb-label">{t('settings.apiEndpoint')}</span>
-                      <input className="nb-input" type="text" value={llmBaseUrl}
-                        onChange={(e) => setLlmBaseUrl(e.target.value)}
-                        placeholder={t('settings.apiEndpointPlaceholder')} />
-                    </div>
                   </>
                 )}
+                <div className="nb-row">
+                  <span className="nb-label">{t('settings.model')}</span>
+                  <NbSelect value={llmModel}
+                    options={getLLMModels(llmProvider).map(m => ({ value: m, label: getModelLabel(m) }))}
+                    onChange={(v) => setLlmModel(v)} />
+                </div>
+                <div className="nb-hr" />
+                <div className="nb-row">
+                  <span className="nb-label">{t('settings.apiEndpoint')}</span>
+                  <input className="nb-input" type="text" value={llmBaseUrl}
+                    onChange={(e) => setLlmBaseUrl(e.target.value)}
+                    placeholder={t('settings.apiEndpointPlaceholder')} />
+                </div>
               </div>
             </section>
           </>
@@ -345,9 +333,9 @@ export const SettingsWindow: React.FC = () => {
                 <div className="nb-hr" />
                 <div className="nb-row">
                   <span className="nb-label">{t('settings.translateInput')}</span>
-                  <HotkeyRecorder currentHotkey={translateHotkey}
-                    onHotkeyChange={(key) => { setTranslateHotkey(key); window.tingmo?.setTranslateModifier(extractModifier(key, 'Right Shift')); }}
-                    onReset={() => { resetTranslateHotkey(); window.tingmo?.setTranslateModifier('Right Shift'); }}
+                  <HotkeyRecorder type="translate" currentHotkey={translateHotkey}
+                    onHotkeyChange={(key) => { setTranslateHotkey(key); window.tingmo?.setTranslateHotkey(key); }}
+                    onReset={() => { resetTranslateHotkey(); window.tingmo?.setTranslateHotkey('右 Alt + 右 Shift'); }}
                   />
                 </div>
               </div>
@@ -369,18 +357,34 @@ export const SettingsWindow: React.FC = () => {
             </section>
 
             <section className="nb-section">
+              <h2 className="nb-section-title"><span className="nb-tag accent">{t('section.refine')}</span></h2>
+              <div className="nb-card">
+                <div className="nb-row">
+                  <span className="nb-label">{t('settings.enableRefine')}</span>
+                  <label className="nb-toggle"><input type="checkbox" checked={refineEnabled} onChange={(e) => setRefineEnabled(e.target.checked)} /><span className="nb-toggle-slider" /></label>
+                </div>
+                {refineEnabled && (
+                  <>
+                    <div className="nb-hr" />
+                    <div className="nb-row">
+                      <span className="nb-label">{t('settings.polishMode')}</span>
+                      <NbSelect value={polishMode} options={[
+                        { value: 'light', label: t('polishMode.light') },
+                        { value: 'balanced', label: t('polishMode.balanced') },
+                        { value: 'deep', label: t('polishMode.deep') },
+                      ]} onChange={(v) => setPolishMode(v)} />
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
+
+            <section className="nb-section">
               <h2 className="nb-section-title"><span className="nb-tag accent">{t('section.translate')}</span></h2>
               <div className="nb-card">
                 <div className="nb-row">
                   <span className="nb-label">{t('settings.targetLanguage')}</span>
                   <NbSelect value={translateTarget} options={TRANS_LANGS} onChange={(v) => setTranslateTarget(v as TranslateLang)} />
-                </div>
-                <div className="nb-hr" />
-                <div className="nb-row">
-                  <span className="nb-label">{t('settings.translateEngine')}</span>
-                  <span className="nb-value" style={{ fontSize: 12, color: refineEnabled ? '#000' : '#999' }}>
-                    {refineEnabled ? `LLM (${llmModel || 'gpt-4o-mini'})` : t('settings.translateEngine.disabled')}
-                  </span>
                 </div>
               </div>
             </section>
@@ -394,6 +398,11 @@ export const SettingsWindow: React.FC = () => {
                 </div>
                 <div className="nb-hr" />
                 <div className="nb-row">
+                  <span className="nb-label">{t('settings.uiSoundEnabled')}</span>
+                  <label className="nb-toggle"><input type="checkbox" checked={uiSoundEnabled} onChange={(e) => setUiSoundEnabled(e.target.checked)} /><span className="nb-toggle-slider" /></label>
+                </div>
+                <div className="nb-hr" />
+                <div className="nb-row">
                   <span className="nb-label">{t('settings.useDictionary')}</span>
                   <label className="nb-toggle"><input type="checkbox" checked={useDictionary} onChange={(e) => setUseDictionary(e.target.checked)} /><span className="nb-toggle-slider" /></label>
                 </div>
@@ -402,6 +411,8 @@ export const SettingsWindow: React.FC = () => {
                   <span className="nb-label">{t('settings.uiLanguage')}</span>
                   <NbSelect value={uiLanguage} options={LANG_OPTIONS} onChange={(v) => setUiLanguage(v as UILanguage)} />
                 </div>
+                <div className="nb-hr" />
+                <UpdatePanel />
               </div>
             </section>
 
@@ -410,18 +421,7 @@ export const SettingsWindow: React.FC = () => {
               <div className="nb-card">
                 <p className="nb-about-name">{t('about.appName')}</p>
                 <p className="nb-about-desc">{t('about.description')}</p>
-                <div className="nb-meta">
-                  <span>SenseVoice</span><span className="meta-dot">·</span>
-                  <span>sherpa-onnx</span><span className="meta-dot">·</span>
-                  <span>Electron</span><span className="meta-dot">·</span>
-                  <span>React</span>
-                </div>
               </div>
-            </section>
-
-            <section className="nb-section">
-              <h2 className="nb-section-title"><span className="nb-tag accent">{t('section.update')}</span></h2>
-              <div className="nb-card"><UpdatePanel /></div>
             </section>
           </>
         )}
