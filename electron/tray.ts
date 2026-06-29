@@ -54,16 +54,20 @@ let popupWin: BrowserWindow | null = null;
 
 function getPopupPosition(tray: Tray): { x: number; y: number } {
   const trayBounds = tray.getBounds();
-  const display = screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y });
+  const cursor = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursor);
   const workArea = display.workArea;
 
+  // Horizontal: center on tray icon
   let x = Math.round(trayBounds.x + trayBounds.width / 2 - POPUP_WIDTH / 2);
-  let y = trayBounds.y - POPUP_HEIGHT - 4;
+  // Vertical: place above cursor, with small gap
+  let y = cursor.y - POPUP_HEIGHT - 8;
 
   // Keep within screen bounds
   if (x < workArea.x) x = workArea.x + 4;
   if (x + POPUP_WIDTH > workArea.x + workArea.width) x = workArea.x + workArea.width - POPUP_WIDTH - 4;
-  if (y < workArea.y) y = trayBounds.y + trayBounds.height + 4;
+  // If not enough room above, place below
+  if (y < workArea.y) y = cursor.y + 16;
 
   return { x, y };
 }
@@ -102,8 +106,16 @@ function createPopupWindow(tray: Tray): BrowserWindow {
     popupWin.loadFile(join(__dirname, '../dist/index.html'), { hash: '/tray-popup' });
   }
 
+  // Close on blur after a short grace period — prevents the Windows tray
+  // overflow panel dismiss from killing the popup immediately.
+  let blurTimer: ReturnType<typeof setTimeout> | null = null;
   popupWin.on('blur', () => {
-    closePopup();
+    blurTimer = setTimeout(() => {
+      closePopup();
+    }, 150);
+  });
+  popupWin.on('focus', () => {
+    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
   });
 
   return popupWin;

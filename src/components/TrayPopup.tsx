@@ -13,17 +13,11 @@ export const TrayPopup: React.FC = () => {
   const dismissRef = useRef(false);
 
   useEffect(() => {
-    const handle = setTimeout(() => {
-      window.addEventListener('blur', () => {
-        if (!dismissRef.current) { dismissRef.current = true; window.tingmo?.closeTrayPopup(); }
-      }, { once: true });
-      const onEsc = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') { dismissRef.current = true; window.tingmo?.closeTrayPopup(); }
-      };
-      window.addEventListener('keydown', onEsc);
-      return () => window.removeEventListener('keydown', onEsc);
-    }, 100);
-    return () => {};
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { dismissRef.current = true; window.tingmo?.closeTrayPopup(); }
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
   }, []);
 
   const handleAsrProvider = (p: 'local' | 'cloud') => {
