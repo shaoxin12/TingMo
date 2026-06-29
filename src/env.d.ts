@@ -66,6 +66,10 @@ interface TingMoAPI {
   maximizeWindow: () => void;
   closeWindow: () => void;
   onMaximizeChange: (cb: (maximized: boolean) => void) => () => void;
+  // Tray popup
+  closeTrayPopup: () => Promise<void>;
+  quitApp: () => Promise<void>;
+  setRecordMode: (mode: string) => Promise<void>;
 }
 
 declare global {

@@ -145,6 +145,11 @@ const api = {
   // ASR cloud API key (separate from LLM)
   setAsrCloudApiKey: (key: string) => ipcRenderer.invoke('settings:set-asr-cloud-api-key', key),
   getAsrCloudApiKey: () => ipcRenderer.invoke('settings:get-asr-cloud-api-key') as Promise<string>,
+
+  // Tray popup
+  closeTrayPopup: () => ipcRenderer.invoke('tray-popup:close'),
+  quitApp: () => ipcRenderer.invoke('app:quit'),
+  setRecordMode: (mode: string) => ipcRenderer.invoke('settings:set-record-mode', mode),
 };
 
 contextBridge.exposeInMainWorld('tingmo', api);

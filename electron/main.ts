@@ -1,7 +1,7 @@
 ﻿import { app, BrowserWindow, ipcMain, session, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { join } from 'path';
-import { createTray, updateTrayState, updateTrayLanguage, setOnAsrProviderChange } from './tray';
+import { createTray, updateTrayState, updateTrayLanguage } from './tray';
 import { startHotkey, stopHotkey, setHotkeyCallback, setHotkeyReleaseCallback, setEscCallback, waitForHotkeyRelease, setHookPaused, setTranslateCombo, setTranslateCallback, setTranslateReleaseCallback } from './hotkey';
 import { VK_RMENU } from './hotkey-events';
 import { injectText } from './text-inserter';
@@ -1531,18 +1531,27 @@ if (app) {
     writeJSON(filepath, existing);
     sendToRenderer('settings:changed', { muteOnRecord: enabled });
   });
-  setOnAsrProviderChange(async () => {
-    console.log('[Main] ASR provider changed, re-initializing...');
-    await initRecognition();
-    console.log('[Main] Re-init complete. recReady:', recognitionReady);
-  });
-
   // Restore saved hotkey from settings, or default to VK_RMENU (Right Alt)
   const savedHotkeyName = readJSON<any>(getDataPath('settings.json'), {}).hotkey || '';
   const savedVk = savedHotkeyName ? VK_NAME_MAP[savedHotkeyName] : undefined;
   recordingHotkeyVK = savedVk || VK_RMENU;
   startHotkey(recordingHotkeyVK);
   console.log('[Main] Hotkey initialized:', savedHotkeyName || '右 Alt', 'VK =', recordingHotkeyVK);
+
+  // ── Tray popup IPC ────────────────────────────────────
+  const { closeTrayPopup } = require('./tray');
+  ipcMain.handle('tray-popup:close', () => {
+    closeTrayPopup();
+  });
+  ipcMain.handle('app:quit', () => {
+    app.quit();
+  });
+  ipcMain.handle('settings:set-record-mode', (_event, mode: 'toggle' | 'hold') => {
+    recordMode = mode;
+    const settings = readJSON<any>(getDataPath('settings.json'), {});
+    settings.recordMode = mode;
+    writeJSON(getDataPath('settings.json'), settings);
+  });
 
   // Show onboarding on first launch
   const settingsPath = getDataPath('settings.json');
