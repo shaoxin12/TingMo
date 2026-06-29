@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="TingMo Screenshot" width="600" />
+  <img src="docs/screenshot-v2.png" alt="TingMo Screenshot" width="600" />
 </p>
 
 <p align="center">
