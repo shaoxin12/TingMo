@@ -314,8 +314,8 @@ debug:save-wav                             # 保存调试录音
 
 `electron/stats-history.ts`:
 - `stats.json`：累计时长、字数、会话数
-- `daily_stats.json`：90 天每日统计
-- `history.json`：最近 200 条记录（含文本、字数、时间戳）
+- `daily_stats.json`：每日统计（全量保留）
+- `history.json`：语音历史记录（全量保留，含文本、字数、时间戳）
 - 原子写入（写临时文件 + rename）
 
 ## 打包

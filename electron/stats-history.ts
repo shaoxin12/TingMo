@@ -105,8 +105,6 @@ function getTodayStats(): DailyStats {
   if (!today) {
     today = { date: key, durationMs: 0, charCount: 0, sessions: 0 };
     daily.push(today);
-    // Keep last 90 days
-    if (daily.length > 90) daily.splice(0, daily.length - 90);
     saveDaily(daily);
   }
   return today;
@@ -172,7 +170,6 @@ export function addHistoryEntry(text: string, charCount: number, originalText?: 
   };
   const h = loadHistory();
   h.unshift(entry);
-  if (h.length > 200) h.length = 200;
   saveHistory(h);
   return entry;
 }
