@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../../i18n/context';
-import { useSettingsStore } from '../../store/settings';
 import { useModelStore } from '../../store/model';
-import { CloudConfigPanel } from './CloudConfigPanel';
 
 interface Props {
   onComplete: () => void;
@@ -11,45 +9,40 @@ interface Props {
 export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
   const { t } = useI18n();
   const [step, setStep] = useState(0);
-  const asrProvider = useSettingsStore((s) => s.asrProvider);
-  const setAsrProvider = useSettingsStore((s) => s.setAsrProvider);
   const modelStatus = useModelStore((s) => s.status);
   const modelProgress = useModelStore((s) => s.progress);
   const setModelProgress = useModelStore((s) => s.setProgress);
   const setModelError = useModelStore((s) => s.setError);
   const setModelReady = useModelStore((s) => s.setReady);
 
-  const maxStep = 3;
+  // 3 steps: Welcome → Hotkey → Model download
+  const maxStep = 2;
 
   const stepTitles = [
     t('onboarding.welcomeTitle'),
     t('onboarding.hotkeyTitle'),
-    t('onboarding.modeTitle'),
-    asrProvider === 'cloud' ? t('onboarding.cloudReadyTitle') : t('onboarding.modelTitle'),
+    t('onboarding.modelTitle'),
   ];
   const stepDescs = [
     t('onboarding.welcomeDesc'),
     t('onboarding.hotkeyDesc'),
-    '',
-    asrProvider === 'cloud' ? t('onboarding.cloudReadyDesc') : t('onboarding.modelDesc'),
+    t('onboarding.modelDesc'),
   ];
 
   const [modelChecked, setModelChecked] = useState(false);
 
-  // Check model status on mount and when reaching step 3 for local mode
+  // Check model status on mount and when reaching step 2
   useEffect(() => {
-    if (asrProvider !== 'cloud') {
+    if (step === 2) {
       setModelChecked(false);
       window.tingmo?.checkModel().then((r) => {
-        if (r?.exists) {
-          setModelReady(r.path || '');
-        }
+        if (r?.exists) setModelReady(r.path || '');
         setModelChecked(true);
       }).catch(() => {
         setModelChecked(true);
       });
     }
-  }, [asrProvider, step === 3]);
+  }, [step]);
 
   useEffect(() => {
     const unsub = window.tingmo?.onModelProgress((data) => {
@@ -68,7 +61,6 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
   }, [t, setModelProgress, setModelError, setModelReady]);
 
   const isDownloading = modelStatus === 'downloading' || modelStatus === 'extracting';
-  const isCloud = asrProvider === 'cloud';
 
   return (
     <div style={{
@@ -115,57 +107,8 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
 
       {step === 2 && (
         <div style={{ maxWidth: 400 }}>
-          <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>
-            {t('onboarding.modeDesc')}
-          </p>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            <button
-              onClick={() => { setAsrProvider('local'); }}
-              style={{
-                padding: '16px 24px', borderRadius: 8, border: asrProvider === 'local' ? '2px solid #000' : '2px solid #ddd',
-                background: asrProvider === 'local' ? '#000' : '#fff',
-                color: asrProvider === 'local' ? '#fff' : '#000',
-                cursor: 'pointer', fontSize: 14, fontWeight: 600,
-              }}
-            >
-              {t('onboarding.local')}
-              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>
-                {t('onboarding.localDesc')}
-              </div>
-            </button>
-            <button
-              onClick={() => { setAsrProvider('cloud'); }}
-              style={{
-                padding: '16px 24px', borderRadius: 8, border: asrProvider === 'cloud' ? '2px solid #000' : '2px solid #ddd',
-                background: asrProvider === 'cloud' ? '#000' : '#fff',
-                color: asrProvider === 'cloud' ? '#fff' : '#000',
-                cursor: 'pointer', fontSize: 14, fontWeight: 600,
-              }}
-            >
-              {t('onboarding.cloud')}
-              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>
-                {t('onboarding.cloudDesc')}
-              </div>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Cloud — configure providers & API keys */}
-      {step === 3 && isCloud && (
-        <div style={{ maxWidth: 420, width: '100%' }}>
-          <p style={{ fontSize: 14, color: '#666', marginBottom: 20, lineHeight: 1.6 }}>
-            {t('onboarding.cloudReadyDesc')}
-          </p>
-          <CloudConfigPanel compact />
-        </div>
-      )}
-
-      {/* Step 3: Local — model download */}
-      {step === 3 && !isCloud && (
-        <div style={{ maxWidth: 400 }}>
           <p style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.6 }}>
-            {stepDescs[3]}
+            {stepDescs[2]}
           </p>
           {isDownloading ? (
             <div style={{ textAlign: 'center' }}>
@@ -212,6 +155,11 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
               </button>
             </div>
           )}
+
+          {/* Hint about switching to cloud later */}
+          <p style={{ fontSize: 12, color: '#aaa', marginTop: 20, lineHeight: 1.5 }}>
+            {t('onboarding.cloudHint')}
+          </p>
         </div>
       )}
 
@@ -229,8 +177,8 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
           <button
             className="nb-btn"
             onClick={onComplete}
-            disabled={!isCloud && isDownloading}
-            style={{ background: (!isCloud && isDownloading) ? '#ccc' : '#FF5A1F', color: '#fff', border: 'none' }}
+            disabled={isDownloading}
+            style={{ background: isDownloading ? '#ccc' : '#FF5A1F', color: '#fff', border: 'none' }}
           >
             {t('onboarding.start')}
           </button>
