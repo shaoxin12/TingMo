@@ -38,8 +38,26 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
     asrProvider === 'cloud' ? t('onboarding.apiKeyDesc') : t('onboarding.modelDesc'),
   ];
 
+  const [modelChecked, setModelChecked] = useState(false);
+
+  // Check model status on mount and when reaching step 3 for local mode
+  useEffect(() => {
+    if (asrProvider !== 'cloud') {
+      setModelChecked(false);
+      window.tingmo?.checkModel().then((r) => {
+        if (r?.exists) {
+          setModelReady(r.path || '');
+        }
+        setModelChecked(true);
+      }).catch(() => {
+        setModelChecked(true);
+      });
+    }
+  }, [asrProvider, step === 3]);
+
   useEffect(() => {
     const unsub = window.tingmo?.onModelProgress((data) => {
+      setModelChecked(true);
       if (data.stage === 'done') {
         window.tingmo?.checkModel().then((r) => {
           if (r?.exists) setModelReady(r.path || '');
@@ -54,6 +72,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
   }, [t, setModelProgress, setModelError, setModelReady]);
 
   const isDownloading = modelStatus === 'downloading' || modelStatus === 'extracting';
+  const showModelSection = step === 3 && asrProvider !== 'cloud';
 
   const handleStart = () => {
     // Validate required fields in cloud mode
@@ -192,7 +211,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         </div>
       )}
 
-      {step === 3 && asrProvider !== 'cloud' && (
+      {showModelSection && (
         <div style={{ maxWidth: 400 }}>
           <p style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.6 }}>
             {stepDescs[3]}
@@ -210,10 +229,38 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
               </div>
             </div>
           ) : modelStatus === 'ready' ? (
-            <p style={{ fontSize: 14, color: '#0a0', fontWeight: 600 }}>{t('model.ready')}</p>
+            <p style={{ fontSize: 14, color: '#0a0', fontWeight: 600 }}>✓ {t('model.ready')}</p>
           ) : modelStatus === 'error' ? (
             <p style={{ fontSize: 14, color: '#e00' }}>{t('model.error')}</p>
-          ) : null}
+          ) : !modelChecked ? (
+            <p style={{ fontSize: 14, color: '#999' }}>{t('model.checking')}</p>
+          ) : (
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: 14, color: '#999', marginBottom: 12 }}>
+                {t('model.notInstalled')}
+              </p>
+              <button
+                className="nb-btn"
+                onClick={() => {
+                  setModelProgress('downloading', 0);
+                  window.tingmo?.ensureModel().then((r) => {
+                    if (r?.ok) {
+                      window.tingmo?.checkModel().then((cr) => {
+                        if (cr?.exists) setModelReady(cr.path || '');
+                      });
+                    } else {
+                      setModelError(r?.error || t('model.error'));
+                    }
+                  }).catch((e) => {
+                    setModelError((e as Error).message || t('model.error'));
+                  });
+                }}
+                style={{ background: '#000', color: '#fff', border: 'none', fontSize: 13 }}
+              >
+                {t('model.download')}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

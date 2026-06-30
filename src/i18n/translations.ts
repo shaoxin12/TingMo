@@ -89,6 +89,7 @@ const D: Record<string, LocaleMap> = {
   'model.size':                 { 'zh-CN': '体积',     'zh-TW': '體積',     en: 'Size',              ja: 'サイズ',        ko: '크기' },
   'model.sizeValue':            { 'zh-CN': '~232 MB',  'zh-TW': '~232 MB',  en: '~232 MB',           ja: '~232 MB',       ko: '~232 MB' },
   'model.notDownloaded':    { 'zh-CN': '模型未下载',   'zh-TW': '模型未下載',   en: 'Model not downloaded', ja: 'モデル未ダウンロード', ko: '모델 미다운로드' },
+  'model.notInstalled':   { 'zh-CN': '模型未安装，点击下方下载', 'zh-TW': '模型未安裝，點擊下方下載', en: 'Model not installed. Click below to download', ja: 'モデル未インストール。下のボタンからダウンロード', ko: '모델 미설치. 아래 버튼으로 다운로드' },
   'model.download':         { 'zh-CN': '下载模型',     'zh-TW': '下載模型',     en: 'Download Model',      ja: 'モデルをダウンロード', ko: '모델 다운로드' },
   'model.downloading':      { 'zh-CN': '下载中',       'zh-TW': '下載中',       en: 'Downloading',         ja: 'ダウンロード中',       ko: '다운로드 중' },
   'model.extracting':       { 'zh-CN': '解压中',       'zh-TW': '解壓中',       en: 'Extracting',          ja: '展開中',               ko: '압축 해제 중' },
