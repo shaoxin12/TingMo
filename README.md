@@ -13,7 +13,6 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-V0.4.1-orange" />
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" />
   <img src="https://img.shields.io/badge/license-MIT-green" />
   <img src="https://img.shields.io/badge/vibe%20coding-🤖-purple" />
@@ -25,7 +24,7 @@
 
 听墨是 Windows 上一个**自由、安静的 AI 语音输入工具**。按右 Alt 说话，松手，文字直接出现在光标位置——写文档、回消息、敲代码注释，嘴巴比手指快。
 
-不绑任何 AI 厂商。**本地引擎离线跑**，数据不出电脑；云端接 OpenAI、火山、阿里云随你换。8 家大模型可选，翻译模式一键切换。
+不绑任何 AI 厂商。**本地引擎离线跑**，数据不出电脑；云端接 OpenAI、火山、阿里云随你换。8 家大模型可选，翻译热键一键出译文。
 
 轻量开源，托盘常住。没有皮肤弹窗、没有会员订阅。只有一粒胶囊浮窗，说话时浮起，说完消失。
 
@@ -109,7 +108,7 @@
 
 ## 安装
 
-从 [Releases](https://github.com/shaoxin12/tingmo/releases) 下载最新 `TingMo-Setup-0.4.1.exe`。
+从 [Releases](https://github.com/shaoxin12/tingmo/releases) 下载最新安装包。
 
 **系统要求**：Windows x64
 

@@ -13,7 +13,6 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-V0.4.1-orange" />
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" />
   <img src="https://img.shields.io/badge/license-MIT-green" />
   <img src="https://img.shields.io/badge/vibe%20coding-🤖-purple" />
@@ -109,7 +108,7 @@ Open source, tray-resident. No skins, no subscriptions. Just a floating capsule 
 
 ## Installation
 
-Download `TingMo-Setup-0.4.1.exe` from [Releases](https://github.com/shaoxin12/tingmo/releases).
+Download the latest installer from [Releases](https://github.com/shaoxin12/tingmo/releases).
 
 **Requirements**: Windows x64
 
