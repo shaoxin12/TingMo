@@ -5,6 +5,8 @@ import { useSettingsStore } from '../store/settings';
 // Resample Float32Array from source rate to target rate using linear interpolation.
 // Applies 2-pass triangular anti-aliasing filter when downsampling to prevent
 // high-frequency noise (>Nyquist) from aliasing into the audible band.
+// NOTE: This function MUTATES the input array when downsampling (applies anti-alias
+// filter in-place). Callers must clone the array if the original must be preserved.
 function resample(samples: Float32Array, srcRate: number, dstRate: number): Float32Array {
   if (srcRate === dstRate) return samples;
 
@@ -88,11 +90,15 @@ const HARD_MUTE_FRAMES = 40;    // prime analyser with gain=0 (~667ms)
 const DAMPED_FRAMES = 15;       // damped attack frames after hard mute (~250ms)
 const WARMUP_TOTAL = HARD_MUTE_FRAMES + DAMPED_FRAMES;
 
+// Throttle React state updates to ~20fps
+const LEVEL_UPDATE_MS = 50;
+
 export function useAudioCapture() {
   const [audioLevel, setAudioLevel] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const scriptNodeRef = useRef<ScriptProcessorNode | null>(null);
   const animFrameRef = useRef<number>(0);
   const pcmChunksRef = useRef<Float32Array[]>([]);
   const sampleRateRef = useRef(48000);
@@ -102,12 +108,18 @@ export function useAudioCapture() {
   const vadTriggeredRef = useRef(false);
   const sentSamplesRef = useRef(0);
   const warmupFramesRef = useRef(0);  // frames remaining in warmup
+  const capturingRef = useRef(false);
+  const lastLevelUpdateRef = useRef(0);
   const TARGET_RATE = 16000;
 
   const startCapture = useCallback(async (deviceId?: string) => {
+    // Guard against double start
+    if (capturingRef.current) return false;
+
     // Reset state synchronously (before any await)
     setAudioLevel(0);
     warmupFramesRef.current = WARMUP_TOTAL;
+    lastLevelUpdateRef.current = 0;
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = 0;
@@ -150,6 +162,7 @@ export function useAudioCapture() {
 
       const bufferSize = 4096;
       const scriptNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+      scriptNodeRef.current = scriptNode;
       pcmChunksRef.current = [];
       silenceDurRef.current = 0;
       vadTriggeredRef.current = false;
@@ -232,11 +245,17 @@ export function useAudioCapture() {
 
         animFrameRef.current = requestAnimationFrame(loop);
 
-        // Pass raw level to FloatingWindow — it does its own smoothing via levelRef.
-        // During warmup, heavily attenuate to prevent any spike from reaching the UI.
-        const out = warmingUp ? rawLevel * 0.01 : rawLevel;
-        setAudioLevel(out);
+        // Throttle setAudioLevel to ~20fps to reduce React re-render pressure
+        const now = performance.now();
+        if (now - lastLevelUpdateRef.current >= LEVEL_UPDATE_MS) {
+          lastLevelUpdateRef.current = now;
+          // Pass raw level to FloatingWindow — it does its own smoothing via levelRef.
+          // During warmup, heavily attenuate to prevent any spike from reaching the UI.
+          const out = warmingUp ? rawLevel * 0.01 : rawLevel;
+          setAudioLevel(out);
+        }
       };
+      capturingRef.current = true;
       loop();
       return true;
     } catch (err: any) {
@@ -269,6 +288,13 @@ export function useAudioCapture() {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = 0;
     }
+    // Disconnect scriptNode and null its handler before closing AudioContext
+    // to prevent onaudioprocess from firing during close
+    if (scriptNodeRef.current) {
+      scriptNodeRef.current.onaudioprocess = null;
+      scriptNodeRef.current.disconnect();
+      scriptNodeRef.current = null;
+    }
     if (analyserRef.current) {
       analyserRef.current.disconnect();
       analyserRef.current = null;
@@ -283,6 +309,8 @@ export function useAudioCapture() {
     }
     setAudioLevel(0);
     warmupFramesRef.current = 0;
+    capturingRef.current = false;
+    lastLevelUpdateRef.current = 0;
 
     const chunks = pcmChunksRef.current;
     if (chunks.length === 0) return null;
@@ -294,7 +322,10 @@ export function useAudioCapture() {
       offset += chunk.length;
     }
     pcmChunksRef.current = [];
-    const resampled = resample(combined, sampleRateRef.current, TARGET_RATE);
+
+    // Clone before resample since resample mutates the input array
+    const clone = new Float32Array(combined);
+    const resampled = resample(clone, sampleRateRef.current, TARGET_RATE);
 
     // Normalize: scale to consistent level regardless of input volume
     let peak = 0;
@@ -325,6 +356,7 @@ export function useAudioCapture() {
   const resetLevels = useCallback(() => {
     setAudioLevel(0);
     warmupFramesRef.current = WARMUP_TOTAL;
+    lastLevelUpdateRef.current = 0;
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = 0;

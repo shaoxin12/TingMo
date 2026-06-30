@@ -62,6 +62,7 @@ export const HomePanel: React.FC = () => {
     if (overviewResult.status === 'fulfilled') setData(overviewResult.value);
     else setError(true);
     if (historyResult.status === 'fulfilled') setHistory(historyResult.value);
+    else setError(true);
   };
 
   useEffect(() => {
@@ -78,7 +79,7 @@ export const HomePanel: React.FC = () => {
 
   const handleClear = async () => {
     await window.tingmo?.clearHistory();
-    setHistory([]);
+    // Reload from source instead of clearing state optimistically
     load();
   };
 
@@ -201,7 +202,7 @@ export const HomePanel: React.FC = () => {
       {history.length === 0 && (
         <div className="nb-card">
           <p style={{ color: '#999', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
-            {t('history.placeholder')}
+            {t('history.empty')}
           </p>
         </div>
       )}

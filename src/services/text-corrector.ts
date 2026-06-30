@@ -14,6 +14,11 @@ export interface CorrectionResult {
   changes: CorrectionRecord[];
 }
 
+export interface DictEntry {
+  word: string;
+  replace: string;
+}
+
 // ── Homophone Table ────────────────────────────────────────────
 // Mapping from common ASR misrecognition → correct word.
 // Only exact substring match; case-sensitive where applicable.
@@ -147,7 +152,6 @@ const HOMOPHONE_MAP: [string, string][] = [
   ['抗飞鸽', 'config'],
   ['抗飞哥', 'config'],
   ['扛费格', 'config'],
-  ['克劳德', 'Claude'],
 
   // File extensions — common spoken patterns
   ['点md', '.md'],
@@ -187,7 +191,9 @@ const HOMOPHONE_MAP: [string, string][] = [
 // Single letters separated by spaces: "G P T" → "GPT", "A P I" → "API"
 // Must be 2+ consecutive single ASCII letters.
 
-const LETTER_MERGE_RE = /\b([A-Za-z])\s+((?:[A-Za-z]\s+)*[A-Za-z])\b/g;
+// Match single letters separated by spaces, with CJK-aware boundaries.
+// \b fails after CJK — use (?<=[一-鿿]|^|\s) instead.
+const LETTER_MERGE_RE = /(?<=[一-鿿]|^|\s)([A-Za-z])\s+((?:[A-Za-z]\s+)*[A-Za-z])(?=[一-鿿]|$|\s)/g;
 
 // ── Chinese Number → Arabic ────────────────────────────────────
 
@@ -303,9 +309,23 @@ const TECH_CASING: Array<[RegExp, string]> = [
   [/\biaas\b/gi, 'IaaS'],
 ];
 
+// ── Normalize dictionary entries ───────────────────────────────────
+// Accepts both `DictEntry[]` ({word, replace}) and legacy `string[]` ("word=>replace")
+
+function normalizeDict(dictionary?: DictEntry[] | string[]): Array<{ word: string; replace: string }> {
+  if (!dictionary?.length) return [];
+  if (typeof dictionary[0] === 'string') {
+    return (dictionary as string[]).map(entry => {
+      const [word, replace] = entry.split('=>');
+      return { word: word?.trim() || '', replace: replace?.trim() || '' };
+    }).filter(e => e.word && e.replace);
+  }
+  return dictionary as DictEntry[];
+}
+
 // ── Main Correction Function ────────────────────────────────────
 
-export function correctText(raw: string, dictionary?: string[]): CorrectionResult {
+export function correctText(raw: string, dictionary?: DictEntry[] | string[]): CorrectionResult {
   const changes: CorrectionRecord[] = [];
   let text = raw;
 
@@ -404,14 +424,12 @@ export function correctText(raw: string, dictionary?: string[]): CorrectionResul
   }
 
   // 7. User dictionary — exact match, highest priority (last so it overrides everything)
-  if (dictionary && dictionary.length > 0) {
-    for (const entry of dictionary) {
-      const parts = entry.split('=>').map(s => s.trim());
-      if (parts.length === 2 && text.includes(parts[0])) {
-        const from = parts[0];
-        const to = parts[1];
-        text = text.split(from).join(to);
-        changes.push({ from, to, reason: 'dictionary' });
+  const dict = normalizeDict(dictionary);
+  if (dict.length > 0) {
+    for (const { word, replace } of dict) {
+      if (text.includes(word)) {
+        text = text.split(word).join(replace);
+        changes.push({ from: word, to: replace, reason: 'dictionary' });
       }
     }
   }

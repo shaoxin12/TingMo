@@ -225,5 +225,8 @@ const D: Record<string, LocaleMap> = {
 };
 
 export function translate(key: string, locale: Locale): string {
-  return D[key]?.[locale] ?? key;
+  const val = D[key]?.[locale];
+  if (val) return val;
+  if (import.meta.env.DEV) console.warn(`[i18n] Missing translation: "${key}" for locale "${locale}"`);
+  return `⚠ ${key}`;
 }

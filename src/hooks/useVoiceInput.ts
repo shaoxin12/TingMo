@@ -19,22 +19,34 @@ export function useVoiceInput() {
     if (!api) return;
 
     const unsub1 = api.onVoiceStateChange((data) => {
-      setVoiceState((prev) => ({
-        ...prev,
-        state: data.state as VoiceState,
-      }));
-      if (data.state === 'idle') setTranslateMode(false);
+      try {
+        setVoiceState((prev) => ({
+          ...prev,
+          state: data.state as VoiceState,
+        }));
+        if (data.state === 'idle') setTranslateMode(false);
+      } catch (err) {
+        console.error('[useVoiceInput] onVoiceStateChange error:', err);
+      }
     });
 
     const unsub2 = api.onRecognitionDone((data) => {
-      setVoiceState({
-        state: 'success',
-        charCount: data.charCount,
-      });
+      try {
+        setVoiceState({
+          state: 'success',
+          charCount: data.charCount,
+        });
+      } catch (err) {
+        console.error('[useVoiceInput] onRecognitionDone error:', err);
+      }
     });
 
     const unsub4 = api.onTranslateMode?.((data: { enabled: boolean }) => {
-      setTranslateMode(data.enabled);
+      try {
+        setTranslateMode(data.enabled);
+      } catch (err) {
+        console.error('[useVoiceInput] onTranslateMode error:', err);
+      }
     });
 
     return () => {
@@ -45,11 +57,15 @@ export function useVoiceInput() {
   }, []);
 
   const finish = useCallback(async () => {
-    await window.tingmo?.finishRecording();
+    await window.tingmo?.finishRecording()?.catch((err: Error) => {
+      console.error('[useVoiceInput] finishRecording failed:', err);
+    });
   }, []);
 
   const cancel = useCallback(async () => {
-    await window.tingmo?.cancelRecording();
+    await window.tingmo?.cancelRecording()?.catch((err: Error) => {
+      console.error('[useVoiceInput] cancelRecording failed:', err);
+    });
   }, []);
 
   return {

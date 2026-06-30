@@ -23,7 +23,8 @@ export class OpenAIProvider implements IRefinementProvider {
         text += r.value;
       }
       return { refinedText: text || rawText, originalText: rawText, provider: `openai/${this.config.model}`, durationMs: performance.now() - t0 };
-    } catch {
+    } catch (streamErr) {
+      console.warn('[OpenAI] Streaming refine failed, falling back to non-streaming:', (streamErr as Error)?.message || streamErr);
       return this.callAPI(systemPrompt, buildUserPrompt(rawText), t0);
     }
   }
@@ -38,8 +39,8 @@ export class OpenAIProvider implements IRefinementProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
     if (signal) {
+      signal.addEventListener('abort', () => controller.abort(), { once: true });
       if (signal.aborted) { controller.abort(); clearTimeout(timer); }
-      else signal.addEventListener('abort', () => controller.abort(), { once: true });
     }
 
     try {
@@ -92,6 +93,21 @@ export class OpenAIProvider implements IRefinementProvider {
               yield content;
             }
           } catch { /* skip unparseable chunks */ }
+        }
+      }
+
+      // Process any remaining buffered SSE line
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith('data:') && trimmed.slice(5).trim() !== '[DONE]') {
+          try {
+            const json = JSON.parse(trimmed.slice(5).trim());
+            const content = json.choices?.[0]?.delta?.content;
+            if (content) {
+              fullText += content;
+              yield content;
+            }
+          } catch { /* skip */ }
         }
       }
 

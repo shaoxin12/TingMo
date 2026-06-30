@@ -21,7 +21,8 @@ export class GeminiProvider implements IRefinementProvider {
       let text = '';
       for (let r = await gen.next(); !r.done; r = await gen.next()) { text += r.value; }
       return { refinedText: text || rawText, originalText: rawText, provider: `gemini/${this.config.model}`, durationMs: performance.now() - t0 };
-    } catch {
+    } catch (streamErr) {
+      console.warn('[Gemini] Streaming refine failed, falling back to non-streaming:', (streamErr as Error)?.message || streamErr);
       return this.callAPI(systemPrompt, buildUserPrompt(rawText), t0);
     }
   }
@@ -31,14 +32,17 @@ export class GeminiProvider implements IRefinementProvider {
     const systemPrompt = buildRefinePrompt(context);
     const baseUrl = (this.config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
     const model = this.config.model || 'gemini-2.5-flash';
+    // NOTE: Gemini API uses API key in URL query string — visible in proxy/firewall logs.
+    // This is a design limitation of the Gemini v1beta REST API. Consider using a proxy
+    // or the official client library for production deployments.
     const url = `${baseUrl}/models/${model}:streamGenerateContent?key=${this.config.apiKey}&alt=sse`;
     const timeout = this.config.timeoutMs || 30000;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
     if (signal) {
+      signal.addEventListener('abort', () => controller.abort(), { once: true });
       if (signal.aborted) { controller.abort(); clearTimeout(timer); }
-      else signal.addEventListener('abort', () => controller.abort(), { once: true });
     }
 
     try {
@@ -89,6 +93,21 @@ export class GeminiProvider implements IRefinementProvider {
         }
       }
 
+      // Process any remaining buffered SSE line
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith('data:')) {
+          try {
+            const json = JSON.parse(trimmed.slice(5).trim());
+            const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              fullText += text;
+              yield text;
+            }
+          } catch { /* skip */ }
+        }
+      }
+
       const refinedText = fullText.trim() || rawText;
       return {
         refinedText,
@@ -110,6 +129,7 @@ export class GeminiProvider implements IRefinementProvider {
   private async callAPI(systemPrompt: string, userMessage: string, t0: number): Promise<RefinementResult> {
     const baseUrl = (this.config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
     const model = this.config.model || 'gemini-2.5-flash';
+    // NOTE: API key in URL query string — same limitation as streaming endpoint.
     const url = `${baseUrl}/models/${model}:generateContent?key=${this.config.apiKey}`;
     const timeout = this.config.timeoutMs || 30000;
 

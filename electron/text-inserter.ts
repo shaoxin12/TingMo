@@ -39,10 +39,16 @@ function writeInput(buf: Buffer, base: number, vk: number, scan: number, flags: 
 export async function injectText(text: string): Promise<InjectResult> {
   const start = performance.now();
 
-  // Count inputs needed: \n uses 4 (Shift+Enter combo), others use 2 (unicode down+up)
+  // Count inputs needed: \n uses 4 (Shift+Enter combo), regular chars use 2 (unicode down+up),
+  // surrogate pairs (non-BMP) use 4 (two down+up pairs)
   let inputCount = 0;
   for (const ch of text) {
-    inputCount += (ch === '\n') ? 4 : 2;
+    if (ch === '\n') {
+      inputCount += 4;
+    } else {
+      const cp = ch.codePointAt(0) ?? 0;
+      inputCount += (cp > 0xFFFF) ? 4 : 2;
+    }
   }
 
   if (inputCount === 0) {
@@ -61,8 +67,19 @@ export async function injectText(text: string): Promise<InjectResult> {
       writeInput(buf, (idx++) * INPUT_SIZE, VK_SHIFT, 0, KEYEVENTF_KEYUP);
     } else {
       const cp = ch.codePointAt(0) ?? 0;
-      writeInput(buf, (idx++) * INPUT_SIZE, 0, cp, KEYEVENTF_UNICODE);
-      writeInput(buf, (idx++) * INPUT_SIZE, 0, cp, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP);
+      if (cp > 0xFFFF) {
+        // Non-BMP character (emoji, etc.) — needs surrogate pair
+        // KEYEVENTF_UNICODE expects UTF-16 code units in wScan
+        const high = 0xD800 + ((cp - 0x10000) >> 10);
+        const low = 0xDC00 + ((cp - 0x10000) & 0x3FF);
+        writeInput(buf, (idx++) * INPUT_SIZE, 0, high, KEYEVENTF_UNICODE);
+        writeInput(buf, (idx++) * INPUT_SIZE, 0, high, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP);
+        writeInput(buf, (idx++) * INPUT_SIZE, 0, low, KEYEVENTF_UNICODE);
+        writeInput(buf, (idx++) * INPUT_SIZE, 0, low, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP);
+      } else {
+        writeInput(buf, (idx++) * INPUT_SIZE, 0, cp, KEYEVENTF_UNICODE);
+        writeInput(buf, (idx++) * INPUT_SIZE, 0, cp, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP);
+      }
     }
   }
 
@@ -72,7 +89,7 @@ export async function injectText(text: string): Promise<InjectResult> {
   }
 
   return {
-    success: injected > 0,
+    success: injected === idx,
     charCount: text.length,
     durationMs: performance.now() - start,
   };

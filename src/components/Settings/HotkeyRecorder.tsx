@@ -31,11 +31,25 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
   const [display, setDisplay] = useState('');
   const displayRef = useRef('');
   const keysRef = useRef<Set<string>>(new Set());
+  const recordingRef = useRef(false);
+
+  // Keep recordingRef in sync so cleanup can read it without stale closure
+  useEffect(() => { recordingRef.current = isRecording; }, [isRecording]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!isRecording) return;
     // Skip browser-generated ghost events (empty code or "Unidentified" key)
     if (!e.code || e.key === 'Unidentified') return;
+    // Escape cancels recording
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsRecording(false);
+      setDisplay('');
+      displayRef.current = '';
+      keysRef.current.clear();
+      window.tingmo?.setHotkeyPaused(false);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     keysRef.current.add(e.code);
@@ -88,6 +102,15 @@ export const HotkeyRecorder: React.FC<Props> = ({ currentHotkey, onHotkeyChange,
       };
     }
   }, [isRecording, handleKeyDown, handleKeyUp]);
+
+  // Ensure hook is unpaused on unmount (prevents global hook from staying paused forever)
+  useEffect(() => {
+    return () => {
+      if (recordingRef.current) {
+        window.tingmo?.setHotkeyPaused(false);
+      }
+    };
+  }, []);
 
   const handleClick = async () => {
     if (!isRecording) {

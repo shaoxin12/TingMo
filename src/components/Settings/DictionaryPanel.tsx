@@ -10,12 +10,19 @@ export const DictionaryPanel: React.FC = () => {
   const handleAdd = () => {
     const w = word.trim();
     if (!w) return;
+    // Check for duplicates
+    if (dictionary.some((e) => e.word === w)) return;
     addDictEntry({ word: w, replace: w });
     setWord('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleAdd();
+  };
+
+  const handleDelete = (wordToDelete: string) => {
+    const idx = dictionary.findIndex((e) => e.word === wordToDelete);
+    if (idx !== -1) removeDictEntry(idx);
   };
 
   return (
@@ -49,11 +56,11 @@ export const DictionaryPanel: React.FC = () => {
       {dictionary.length > 0 && (
         <div className="nb-card" style={{ padding: '14px 18px' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {dictionary.map((entry, i) => (
-              <span key={i} className="dict-tag">
+            {dictionary.map((entry) => (
+              <span key={entry.word} className="dict-tag">
                 {entry.word}
                 <button
-                  onClick={() => removeDictEntry(i)}
+                  onClick={() => handleDelete(entry.word)}
                   className="dict-tag-del"
                   title={t('dictionary.delete')}
                 >

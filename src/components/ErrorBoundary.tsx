@@ -38,18 +38,17 @@ export class ErrorBoundary extends React.Component<Props, State> {
             fontSize: 14, color: '#FF5A1F', fontWeight: 700,
             marginBottom: 8, textAlign: 'center',
           }}>
-            发生错误
+            发生错误 / An error occurred
           </div>
           <div style={{
             fontSize: 12, color: '#999', maxWidth: 400,
             textAlign: 'center', wordBreak: 'break-all',
             fontFamily: 'monospace', marginBottom: 16,
           }}>
-            {this.state.error?.message || '未知错误'}
+            {this.state.error?.message || '未知错误 / Unknown error'}
           </div>
           <button
             onClick={() => {
-              this.setState({ hasError: false, error: null });
               window.location.reload();
             }}
             style={{
@@ -59,7 +58,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               fontFamily: 'inherit',
             }}
           >
-            重新加载
+            重新加载 / Reload
           </button>
         </div>
       );

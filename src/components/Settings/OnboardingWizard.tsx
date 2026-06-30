@@ -55,6 +55,19 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
 
   const isDownloading = modelStatus === 'downloading' || modelStatus === 'extracting';
 
+  const handleStart = () => {
+    // Validate required fields in cloud mode
+    if (asrProvider === 'cloud') {
+      const trimmedAsr = asrCloudApiKey.trim();
+      if (!trimmedAsr) return;
+      // Ensure store has trimmed values before completing
+      if (trimmedAsr !== asrCloudApiKey) setAsrCloudApiKey(trimmedAsr);
+      const trimmedLlm = llmApiKey.trim();
+      if (trimmedLlm !== llmApiKey) setLlmApiKey(trimmedLlm);
+    }
+    onComplete();
+  };
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -217,16 +230,17 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         ) : (
           <button
             className="nb-btn"
-            onClick={onComplete}
-            disabled={isDownloading}
-            style={{ background: isDownloading ? '#ccc' : '#FF5A1F', color: '#fff', border: 'none' }}
+            onClick={handleStart}
+            disabled={isDownloading || (asrProvider === 'cloud' && !asrCloudApiKey.trim())}
+            style={{ background: (isDownloading || (asrProvider === 'cloud' && !asrCloudApiKey.trim())) ? '#ccc' : '#FF5A1F', color: '#fff', border: 'none' }}
           >
             {t('onboarding.start')}
           </button>
         )}
       </div>
 
-      {step < maxStep && (
+      {/* Hide skip button while downloading to prevent accidental skip mid-download */}
+      {step < maxStep && !isDownloading && (
         <button
           onClick={onComplete}
           style={{ marginTop: 16, background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12 }}

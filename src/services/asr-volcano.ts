@@ -63,6 +63,11 @@ export class VolcanoASRProvider implements IRecognitionProvider {
 
   // ── Streaming mode ───────────────────────────────────
   async startStream(sampleRate: number, lang: string): Promise<void> {
+    // Clean up any previous stream first (guard against concurrent calls)
+    if (this._streamWs) {
+      this._cleanupStream();
+    }
+
     const volcLang = lang && lang !== 'auto' ? (lang === 'en' ? 'en-US' : 'zh-CN') : 'zh-CN';
 
     return new Promise((resolve, reject) => {
@@ -164,6 +169,10 @@ export class VolcanoASRProvider implements IRecognitionProvider {
 
       ws.on('error', (err: Error) => {
         clearTimeout(timeout);
+        if (this._streamReject) {
+          this._streamReject(new Error(`Volcano stream: ${err.message}`));
+          this._streamReject = null;
+        }
         this._cleanupStream();
         reject(new Error(`Volcano stream: ${err.message}`));
       });
@@ -184,7 +193,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
   }
 
   sendStreamChunk(pcm: Buffer): void {
-    if (!this._streamWs || this._streamWs.readyState !== WebSocket.OPEN) return;
+    if (!this._streamWs || this._streamWs.readyState !== WebSocket.OPEN || !this._streamReady) return;
     // Strip WAV header if present (44 bytes)
     const rawPcm = pcm.length > 44 ? pcm.subarray(44) : pcm;
     const frame = buildFrame(MT_AUDIO_ONLY, 0x0, SER_NONE, CMP_NONE, rawPcm);
@@ -219,8 +228,13 @@ export class VolcanoASRProvider implements IRecognitionProvider {
 
   private _cleanupStream(): void {
     if (this._streamTimer) { clearTimeout(this._streamTimer); this._streamTimer = null; }
-    try { this._streamWs?.close(); } catch { /* ignore */ }
-    this._streamWs = null;
+    if (this._streamWs) {
+      this._streamWs.onmessage = null;
+      this._streamWs.onerror = null;
+      this._streamWs.onclose = null;
+      try { this._streamWs.close(); } catch { /* ignore */ }
+      this._streamWs = null;
+    }
     this._streamReady = false;
     this._streamReadyResolve = null;
     this._streamResolve = null;
@@ -342,11 +356,20 @@ export class VolcanoASRProvider implements IRecognitionProvider {
       ws.on('close', (code: number) => {
         clearTimeout(timeout);
         console.log('[Volcano ASR] WS closed, code:', code, 'text:', finalText.slice(0, 80));
-        resolve({
-          text: finalText.trim(),
-          durationMs: performance.now() - t0,
-          language: lang || 'zh',
-        });
+        if (code !== 1000 && !finalText) {
+          reject(new Error(`Volcano ASR connection closed with code ${code} — possible auth failure`));
+        } else {
+          resolve({
+            text: finalText.trim(),
+            durationMs: performance.now() - t0,
+            language: lang || 'zh',
+          });
+        }
+      });
+
+      ws.on('unexpected-response', (_req: any, res: any) => {
+        clearTimeout(timeout);
+        reject(new Error(`Volcano ASR auth failed: HTTP ${res.statusCode} ${res.statusMessage || ''}`));
       });
     });
   }
@@ -357,7 +380,7 @@ export class VolcanoASRProvider implements IRecognitionProvider {
   }
 }
 
-function sendAudio(ws: WebSocket, audioBuffer: Buffer) {
+async function sendAudio(ws: WebSocket, audioBuffer: Buffer) {
   const pcm = audioBuffer.length > 44 ? audioBuffer.subarray(44) : audioBuffer;
   const CHUNK = 6400; // 200ms @ 16kHz 16bit mono
 
@@ -365,6 +388,10 @@ function sendAudio(ws: WebSocket, audioBuffer: Buffer) {
     const chunk = pcm.subarray(offset, Math.min(offset + CHUNK, pcm.length));
     const frame = buildFrame(MT_AUDIO_ONLY, 0x0, SER_NONE, CMP_NONE, chunk);
     ws.send(frame);
+    // Yield to allow send buffer to drain, preventing backpressure overflow
+    if (ws.bufferedAmount > 65536) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
   }
 
   // Send empty last-packet frame to signal end-of-audio

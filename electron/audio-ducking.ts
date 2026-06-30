@@ -71,6 +71,10 @@ function getPS(): Promise<void> {
       '-Command', PS_SCRIPT,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
 
+    const readyTimer = setTimeout(() => {
+      if (!ready) reject(new Error('Audio PS timeout'));
+    }, 8000);
+
     let lineBuf = '';
     psProc.stdout!.on('data', (data: Buffer) => {
       lineBuf += data.toString();
@@ -79,7 +83,12 @@ function getPS(): Promise<void> {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
-        if (!ready && trimmed === 'READY') { ready = true; resolve(); continue; }
+        if (!ready && trimmed === 'READY') {
+          ready = true;
+          clearTimeout(readyTimer);
+          resolve();
+          continue;
+        }
         if (pendingResolve) { const cb = pendingResolve; pendingResolve = null; cb(trimmed); }
       }
     });
@@ -89,11 +98,10 @@ function getPS(): Promise<void> {
     });
 
     psProc.on('exit', () => {
+      clearTimeout(readyTimer);
       psProc = null; ready = false;
       if (pendingResolve) { pendingResolve('ERR:ps exited'); pendingResolve = null; }
     });
-
-    setTimeout(() => { if (!ready) reject(new Error('Audio PS timeout')); }, 8000);
   });
 }
 

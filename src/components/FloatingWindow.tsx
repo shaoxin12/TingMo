@@ -22,50 +22,50 @@ function hasAudioSignal(wavBuf: ArrayBuffer): boolean {
 }
 
 /** Generate a simple sine-wave WAV and play via HTML5 Audio element.
- *  Avoids Web Audio API AudioContext issues in Electron (suspended without user gesture). */
-function playUISound(type: 'appear' | 'dismiss') {
-  try {
-    const sampleRate = 8000;
-    const duration = type === 'appear' ? 0.2 : 0.12;
-    const numSamples = Math.floor(sampleRate * duration);
-    const dataSize = numSamples * 2;
-    const buf = new ArrayBuffer(44 + dataSize);
-    const v = new DataView(buf);
+ *  Avoids Web Audio API AudioContext issues in Electron (suspended without user gesture).
+ *  Returns the blob URL for lifecycle management — caller must call URL.revokeObjectURL when done. */
+function playUISound(type: 'appear' | 'dismiss'): string {
+  const sampleRate = 8000;
+  const duration = type === 'appear' ? 0.2 : 0.12;
+  const numSamples = Math.floor(sampleRate * duration);
+  const dataSize = numSamples * 2;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const v = new DataView(buf);
 
-    // WAV header
-    const writeStr = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
-    writeStr(0, 'RIFF'); v.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
-    writeStr(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
-    v.setUint16(22, 1, true); v.setUint32(24, sampleRate, true);
-    v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-    writeStr(36, 'data'); v.setUint32(40, dataSize, true);
+  // WAV header
+  const writeStr = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF'); v.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
+  writeStr(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true); v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  writeStr(36, 'data'); v.setUint32(40, dataSize, true);
 
-    // Fill PCM samples
-    for (let i = 0; i < numSamples; i++) {
-      const t = i / sampleRate;
-      let sample = 0;
-      if (type === 'appear') {
-        // Two-tone chime: E5(659Hz) + C6(1047Hz) with fast decay
-        sample = Math.sin(2 * Math.PI * 880 * t) * 0.5 + Math.sin(2 * Math.PI * 1320 * t) * 0.3;
-      } else {
-        // Descending blip: C6→G5
-        const freq = 1047 - (t / duration) * 263;
-        sample = Math.sin(2 * Math.PI * freq * t) * 0.4;
-      }
-      // Exponential decay envelope
-      sample *= Math.exp(-t * 12);
-      const int16 = Math.max(-32767, Math.min(32767, Math.round(sample * 6000)));
-      v.setInt16(44 + i * 2, int16, true);
+  // Fill PCM samples
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    let sample = 0;
+    if (type === 'appear') {
+      // Two-tone chime: E5(659Hz) + C6(1047Hz) with fast decay
+      sample = Math.sin(2 * Math.PI * 880 * t) * 0.5 + Math.sin(2 * Math.PI * 1320 * t) * 0.3;
+    } else {
+      // Descending blip: C6→G5
+      const freq = 1047 - (t / duration) * 263;
+      sample = Math.sin(2 * Math.PI * freq * t) * 0.4;
     }
+    // Exponential decay envelope
+    sample *= Math.exp(-t * 12);
+    const int16 = Math.max(-32767, Math.min(32767, Math.round(sample * 6000)));
+    v.setInt16(44 + i * 2, int16, true);
+  }
 
-    const blob = new Blob([buf], { type: 'audio/wav' });
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audio.volume = 0.5;
-    audio.play().then(() => {
-      audio.onended = () => URL.revokeObjectURL(url);
-    }).catch(() => URL.revokeObjectURL(url));
-  } catch { /* ignore */ }
+  const blob = new Blob([buf], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  audio.volume = 0.5;
+  audio.play().then(() => {
+    audio.onended = () => URL.revokeObjectURL(url);
+  }).catch(() => URL.revokeObjectURL(url));
+  return url;
 }
 
 const BAR_COUNT = 15;
@@ -106,6 +106,18 @@ export const FloatingWindow: React.FC = () => {
   const [visible, setVisible] = useState(false);
   const [, setTick] = useState(0);
   const animRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const soundUrlRef = useRef<string | null>(null);
+
+  // Wrapper that tracks blob URL for cleanup
+  const playAndTrack = (type: 'appear' | 'dismiss') => {
+    // Revoke previous before creating new
+    if (soundUrlRef.current) {
+      URL.revokeObjectURL(soundUrlRef.current);
+      soundUrlRef.current = null;
+    }
+    soundUrlRef.current = playUISound(type);
+  };
 
   const barActive = state === 'recording' || state === 'recognizing' || state === 'refining';
   useEffect(() => {
@@ -133,7 +145,7 @@ export const FloatingWindow: React.FC = () => {
     // for the browser to attach the ref before starting Web Animation.
     if (prev === 'idle' && state !== 'idle') {
       if (animRef2.current) { animRef2.current.cancel(); animRef2.current = null; }
-      if (uiSoundEnabled) playUISound('appear');
+      if (uiSoundEnabled) playAndTrack('appear');
       flushSync(() => setVisible(true));
       requestAnimationFrame(() => {
         if (capsuleRef.current) {
@@ -153,7 +165,7 @@ export const FloatingWindow: React.FC = () => {
     if (prev !== 'idle' && state === 'idle' && visible) {
       // Cancel any stale animation (including appear) before dismiss
       if (animRef2.current) { animRef2.current.cancel(); animRef2.current = null; }
-      if (uiSoundEnabled) playUISound('dismiss');
+      if (uiSoundEnabled) playAndTrack('dismiss');
       if (capsuleRef.current) {
         const anim = capsuleRef.current.animate([
           { opacity: '1', transform: 'translateY(0) scale(1)' },
@@ -163,14 +175,15 @@ export const FloatingWindow: React.FC = () => {
         anim.onfinish = () => { setVisible(false); animRef2.current = null; };
       }
     }
-  }, [state, visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, visible, uiSoundEnabled]);
 
   // ── Success → auto-dismiss (renderer-side timer) ─────────
   const successTimerRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
     if (state === 'success') {
       successTimerRef.current = setTimeout(() => {
-        if (uiSoundEnabled) playUISound('dismiss');
+        if (uiSoundEnabled) playAndTrack('dismiss');
         if (capsuleRef.current) {
           const anim = capsuleRef.current.animate([
             { opacity: '1', transform: 'translateY(0) scale(1)' },
@@ -183,12 +196,20 @@ export const FloatingWindow: React.FC = () => {
     return () => {
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
     };
-  }, [state]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, uiSoundEnabled]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (animRef2.current) animRef2.current.cancel();
+      // Revoke any outstanding sound blob URL
+      if (soundUrlRef.current) {
+        URL.revokeObjectURL(soundUrlRef.current);
+        soundUrlRef.current = null;
+      }
+      // Abort in-flight async IIFEs
+      abortRef.current?.abort();
     };
   }, []);
 
@@ -196,6 +217,7 @@ export const FloatingWindow: React.FC = () => {
   const isCloudStream = asrProvider === 'cloud' && (asrCloudProvider === 'volcano' || asrCloudProvider === 'aliyun');
   useEffect(() => {
     if (state === 'recording') {
+      abortRef.current?.abort();
       startCapture(selectedMicDeviceId || undefined);
       sentAudioRef.current = false;
       if (isCloudStream) {
@@ -243,6 +265,7 @@ export const FloatingWindow: React.FC = () => {
         }, 2000);
       }
     } else if (state === 'idle') {
+      abortRef.current?.abort();
       clearInterval(streamTimerRef.current);
       streamClosedRef.current = true;
       stopCapture();
@@ -251,6 +274,11 @@ export const FloatingWindow: React.FC = () => {
     } else if (state === 'recognizing') {
       clearInterval(streamTimerRef.current);
       streamClosedRef.current = true;
+      // Create new AbortController to cancel in-flight async IIFEs on state change
+      const controller = new AbortController();
+      abortRef.current?.abort();
+      abortRef.current = controller;
+      const signal = controller.signal;
       if (isCloudStream) {
         // Drain remaining PCM, end stream, get final text from cloud WS
         (async () => {
@@ -265,6 +293,7 @@ export const FloatingWindow: React.FC = () => {
             const timeoutPromise = new Promise<string>((r) => setTimeout(() => r(''), 5000));
             preAsrText = (await Promise.race([streamPromise, timeoutPromise])) || '';
           } catch { preAsrText = ''; }
+          if (signal.aborted) return;
           console.log(`[FW] Cloud stream end: preAsrText ${preAsrText.length} chars — "${preAsrText.slice(0, 80)}"`);
           const result = stopCapture();
           if ((preAsrText || (result && hasAudioSignal(result.wav))) && !sentAudioRef.current) {
@@ -290,6 +319,7 @@ export const FloatingWindow: React.FC = () => {
             const text = await window.tingmo?.asrChunk(lastWav);
             if (text) streamTextRef.current.push(text);
           }
+          if (signal.aborted) return;
           const result = stopCapture();
           const preAsrText = streamTextRef.current.join('').trim();
           console.log(`[FW] preAsrText: ${streamTextRef.current.length} chunks, ${preAsrText.length} chars — "${preAsrText.slice(0, 80)}"`);
@@ -329,10 +359,13 @@ export const FloatingWindow: React.FC = () => {
         }
       }
     }
-    return () => clearInterval(streamTimerRef.current);
+    return () => {
+      clearInterval(streamTimerRef.current);
+      abortRef.current?.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-	  }, [state, asrProvider, asrCloudProvider, startCapture, stopCapture, drainNewWav, selectedMicDeviceId, language,
-	    translateMode, translateTarget, useDictionary, dictionary, polishMode]);
+  }, [state, asrProvider, asrCloudProvider, startCapture, stopCapture, drainNewWav, selectedMicDeviceId, language,
+    translateMode, translateTarget, useDictionary, dictionary, polishMode, uiSoundEnabled]);
 
   if (!visible) return null;
 

@@ -3,6 +3,7 @@
 export interface TestResult {
   ok: boolean;
   error?: string;
+  message?: string;
   status?: number;
 }
 
@@ -58,10 +59,23 @@ export async function testAsrConnection(
             'X-Api-Sequence': '-1',
           },
         });
-        ws.on('open', () => {
+        ws.on('message', () => {
+          // Server sent a response — connection + auth confirmed
           clearTimeout(timer);
           try { ws.close(); } catch { /* ignore */ }
-          resolve({ ok: true });
+          resolve({ ok: true, message: '连接成功' });
+        });
+        ws.on('open', () => {
+          // WS connected, but don't resolve yet — server validates API key after upgrade.
+          // Wait for first message or close to confirm auth status.
+          // Fallback: if no message within 2s, treat open as success (some servers don't send greeting).
+          const openTimer = setTimeout(() => {
+            clearTimeout(timer);
+            try { ws.close(); } catch { /* ignore */ }
+            resolve({ ok: true, message: '连接成功' });
+          }, 2000);
+          // Store ref so onclose can clear it
+          (ws as any).__openTimer = openTimer;
         });
         ws.on('error', (err: Error) => {
           clearTimeout(timer);
@@ -70,6 +84,13 @@ export async function testAsrConnection(
           else if (msg.includes('ENOTFOUND')) resolve({ ok: false, error: 'DNS 解析失败，请检查网络' });
           else if (msg.includes('ECONNREFUSED')) resolve({ ok: false, error: '连接被拒绝，请检查网络' });
           else resolve({ ok: false, error: msg.slice(0, 100) || 'WebSocket 连接失败' });
+        });
+        ws.on('close', (code: number) => {
+          clearTimeout(timer);
+          clearTimeout((ws as any).__openTimer);
+          if (code !== 1000) {
+            resolve({ ok: false, message: `连接失败: ${code !== 1006 ? `code ${code}` : '认证失败'}` });
+          }
         });
         ws.on('unexpected-response', (_req: any, res: any) => {
           clearTimeout(timer);
@@ -85,28 +106,39 @@ export async function testAsrConnection(
   }
 
   // ── Aliyun DashScope ──────────────────────────────
+  // Tests connectivity to the DashScope ASR transcription endpoint.
+  // Uses a minimal request — the API will reject with 400 for invalid params
+  // but that confirms the key is valid and the endpoint is reachable.
   if (provider === 'aliyun') {
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 8000);
-      const res = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+      const res = await fetch('https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
-          'X-DashScope-SSE': 'disable',
         },
         body: JSON.stringify({
-          model: 'fun-asr-realtime',
-          input: { messages: [{ role: 'user', content: [{ text: 'test' }] }] },
+          model: 'fun-asr',
+          input: { file_urls: ['https://example.com/test.wav'] },
           parameters: {},
         }),
         signal: ctrl.signal,
       });
       clearTimeout(timer);
       if (res.status === 401 || res.status === 403) return { ok: false, error: `密钥无效 (HTTP ${res.status})` };
-      // 400 = bad params but key valid, 200 = success — both mean connected
-      return { ok: true };
+      if (res.status === 400) {
+        const body = await res.json().catch(() => ({}));
+
+        if (body.message?.includes('invalid') || body.message?.includes('key') || body.message?.includes('auth')) {
+
+          return { ok: false, error: '密钥无效' };
+        }
+        // 400 with other reasons = key is valid, endpoint reached
+        return { ok: true, message: '连接成功（密钥有效）' };
+      }
+      return { ok: true, message: '连接成功' };
     } catch (err: any) {
       if (err.name === 'AbortError') return { ok: false, error: '连接超时' };
       return { ok: false, error: err.message?.slice(0, 100) };

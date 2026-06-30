@@ -60,7 +60,7 @@ type VoiceState = 'idle' | 'recording' | 'recognizing' | 'refining' | 'success' 
 
 let currentState: VoiceState = 'idle';
 let floatingReady = false;
-let pendingState: VoiceState | null = null;
+const pendingMessages: Array<{channel: string, data: any}> = [];
 let autoDismissTimer: ReturnType<typeof setTimeout> | null = null;
 let stuckWatchdog: ReturnType<typeof setTimeout> | null = null;
 let recordingStartedAt: number = 0;
@@ -79,7 +79,19 @@ function readJSON<T>(filepath: string, fallback: T): T {
     if (fs.existsSync(filepath)) {
       return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
     }
-  } catch { /* ignore */ }
+  } catch (e) {
+    // Backup corrupted file so the user can recover data
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const dir = path.dirname(filepath);
+      const ext = path.extname(filepath);
+      const base = path.basename(filepath, ext);
+      const backup = path.join(dir, `${base}.corrupted.${Date.now()}${ext}`);
+      fs.renameSync(filepath, backup);
+      console.error('[Main] Corrupted settings file backed up to:', backup, 'error:', (e as Error).message);
+    } catch { /* best-effort backup */ }
+  }
   return fallback;
 }
 
@@ -144,6 +156,8 @@ let recognitionReady = false;
 // Cached local recognizer — initialized once, stays alive across provider switches
 let cachedLocalProvider: any = null;
 let cachedLocalReady = false;
+let localInitPending = false;
+let localInitTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Cached fallback recognizer — avoids model reload on every call
 let fallbackRecognizer: any = null;
@@ -190,6 +204,8 @@ async function initRecognition(): Promise<void> {
     const asrApiKey: string = appSettings.asrCloudApiKey || '';
 
     if (provider === 'cloud') {
+      // Cancel any pending local init — cloud is being chosen explicitly
+      if (localInitTimer) { clearTimeout(localInitTimer); localInitTimer = null; localInitPending = false; }
 
       const preset = getASRCloudProvider(asrCloudProviderKey);
       const asrEndpoint = preset?.endpoint || 'https://api.openai.com/v1';
@@ -216,6 +232,11 @@ async function initRecognition(): Promise<void> {
       }
     }
     if (provider === 'local') {
+      // Guard against concurrent deferred initialization
+      if (localInitPending) {
+        console.log('[Main] Local ASR init already pending, skipping duplicate');
+        return;
+      }
 
       // Use cached provider if already initialized (avoids blocking re-load)
       if (cachedLocalReady && cachedLocalProvider) {
@@ -234,7 +255,8 @@ async function initRecognition(): Promise<void> {
 
           // Defer the blocking C++ model load so the UI doesn't freeze
           recognitionReady = false;
-          setTimeout(async () => {
+          localInitPending = true;
+          localInitTimer = setTimeout(async () => {
             try {
               const ready = await provider.initialize();
               cachedLocalProvider = provider;
@@ -245,6 +267,9 @@ async function initRecognition(): Promise<void> {
             } catch (err: any) {
               console.error('[Main] Local ASR init failed:', err.message);
               recognitionReady = false;
+            } finally {
+              localInitPending = false;
+              localInitTimer = null;
             }
           }, 50);
           console.log('[Main] Local ASR loading deferred');
@@ -472,13 +497,11 @@ function createFloatingWindow(): BrowserWindow {
   win.webContents.on('did-finish-load', () => {
     win?.webContents.insertCSS('html,body,#root{background:transparent !important}');
     floatingReady = true;
-    if (pendingTranslateMode !== null) {
-      win.webContents.send('voice:translate-mode', { enabled: pendingTranslateMode });
-      pendingTranslateMode = null;
-    }
-    if (pendingState) {
-      win.webContents.send('voice:state-change', { state: pendingState });
-      pendingState = null;
+    if (pendingMessages.length > 0) {
+      for (const { channel, data } of pendingMessages) {
+        win.webContents.send(channel, data);
+      }
+      pendingMessages.length = 0;
     }
   });
   floatingReady = false;
@@ -534,16 +557,12 @@ function hideFloatingWindow(): void {
   }
 }
 
-let pendingTranslateMode: boolean | null = null;
-
 function sendToRenderer(channel: string, data?: unknown): void {
   if (!floatingWindow || floatingWindow.isDestroyed()) return;
   if (floatingReady) {
     floatingWindow.webContents.send(channel, data);
-  } else if (channel === 'voice:state-change') {
-    pendingState = (data as { state: VoiceState }).state;
-  } else if (channel === 'voice:translate-mode') {
-    pendingTranslateMode = (data as { enabled: boolean }).enabled;
+  } else {
+    pendingMessages.push({ channel, data });
   }
 }
 
@@ -594,6 +613,7 @@ function createSettingsWindow(showOnboarding = false): void {
     minHeight: 660,
     resizable: true,
     frame: false,
+    show: false,
     title: 'TINGMO · 设置',
     autoHideMenuBar: true,
     webPreferences: {
@@ -610,6 +630,11 @@ function createSettingsWindow(showOnboarding = false): void {
     settingsWindow.loadFile(join(__dirname, '../dist/index.html'), { hash });
   }
 
+  // Show only after first paint to prevent black flash on frameless window
+  settingsWindow.once('ready-to-show', () => {
+    settingsWindow?.show();
+  });
+
   settingsWindow.on('closed', () => {
     settingsWindow = null;
   });
@@ -622,6 +647,20 @@ function createSettingsWindow(showOnboarding = false): void {
 }
 
 // ── Hotkey callbacks ──────────────────────────────────────
+
+function startStuckWatchdog(): void {
+  if (stuckWatchdog) clearTimeout(stuckWatchdog);
+  stuckWatchdog = setTimeout(() => {
+    if (currentState === 'recognizing') {
+      console.error('[Main] Stuck in recognizing, force resetting');
+      setVoiceState('idle');
+      hideFloatingWindow();
+      translateMode = false;
+      sendToRenderer('voice:state-change', { state: 'idle' });
+    }
+    stuckWatchdog = null;
+  }, 15000);
+}
 
 function handleHotkeyPress(): void {
   clearAutoDismiss();
@@ -668,17 +707,7 @@ function handleHotkeyPress(): void {
     }
     case 'recording': {
       setVoiceState('recognizing');
-      if (stuckWatchdog) clearTimeout(stuckWatchdog);
-      stuckWatchdog = setTimeout(() => {
-        if (currentState === 'recognizing') {
-          console.error('[Main] Stuck in recognizing, force resetting');
-          setVoiceState('idle');
-          hideFloatingWindow();
-          translateMode = false;
-          sendToRenderer('voice:state-change', { state: 'idle' });
-        }
-        stuckWatchdog = null;
-      }, 15000);
+      startStuckWatchdog();
       break;
     }
     // Any other state (error/success/recognizing/refining): reset to idle.
@@ -696,6 +725,7 @@ function handleHotkeyPress(): void {
 function handleHotkeyRelease(): void {
   if (recordMode === 'hold' && currentState === 'recording') {
     setVoiceState('recognizing');
+    startStuckWatchdog();
   }
 }
 
@@ -801,10 +831,13 @@ if (app) {
     if (typeof settings.launchAtStartup === 'boolean') {
       app.setLoginItemSettings({ openAtLogin: settings.launchAtStartup as boolean });
     }
-    // Notify settings window so its Zustand store stays in sync
-    // (tray popup and settings are separate BrowserWindows with separate stores)
+    // Notify settings window and floating window so their Zustand stores stay in sync
+    // (tray popup, settings, and floating are separate BrowserWindows with separate stores)
     if (settingsWindow && !settingsWindow.isDestroyed()) {
       settingsWindow.webContents.send('settings:changed', settings);
+    }
+    if (floatingWindow && !floatingWindow.isDestroyed()) {
+      sendToRenderer('settings:changed', settings);
     }
   });
 
@@ -830,6 +863,15 @@ if (app) {
       translateModifierVK = 0;
       console.log('[Main] Translate hotkey:', hotkey, '→ combo mode, VKs =', vks);
     }
+    // Persist to settings.json so it survives restart
+    try {
+      const filepath = getDataPath('settings.json');
+      const existing = readJSON<any>(filepath, {});
+      existing.translateHotkey = hotkey;
+      writeJSON(filepath, existing);
+    } catch (err: any) {
+      console.error('[Main] Failed to save translate hotkey:', err.message);
+    }
   });
 
   // Allow renderer to resize the floating window (e.g. error panel expansion)
@@ -846,6 +888,15 @@ if (app) {
       console.log('[Main] Recording hotkey changed to', hotkeyName, 'VK =', vk);
       stopHotkey();
       startHotkey(vk);
+      // Persist to settings.json so it survives restart
+      try {
+        const filepath = getDataPath('settings.json');
+        const existing = readJSON<any>(filepath, {});
+        existing.hotkey = hotkeyName;
+        writeJSON(filepath, existing);
+      } catch (err: any) {
+        console.error('[Main] Failed to save hotkey:', err.message);
+      }
     }
   });
 
@@ -969,6 +1020,7 @@ if (app) {
   ipcMain.handle('voice:finish-recording', () => {
     if (currentState === 'recording') {
       setVoiceState('recognizing');
+      startStuckWatchdog();
     }
   });
 
@@ -981,6 +1033,8 @@ if (app) {
   ipcMain.handle('voice:capture-error', (_event, message: string) => {
     console.error('[Main] Audio capture error:', message);
     setVoiceState('idle');
+    // Forward error to floating window so UI can show feedback
+    sendToRenderer('voice:capture-error', { error: message });
   });
 
   // Audio transcription from renderer
@@ -1273,8 +1327,9 @@ if (app) {
       let injectResult: any = null;
 
       if (doRefine) {
-        // Stream LLM output directly to cursor — no raw→backspace flicker.
-        // Each chunk is injected as it arrives (progressive typewriter effect).
+        // Accumulate all chunks before injection — avoids partial text being
+        // left in the cursor if the stream fails mid-way. On success the full
+        // refined text is injected once; on failure only the raw ASR is injected.
         setVoiceState('refining');
         const ctx = {
           language,
@@ -1287,9 +1342,9 @@ if (app) {
             let fullText = '';
             for await (const chunk of refinementProvider.streamRefine(rawText, ctx)) {
               fullText += chunk;
-              injectResult = await injectText(chunk);
             }
             text = fullText.trim() || rawText;
+            injectResult = await injectText(text);
           } else {
             const result = await refinementProvider.refine(rawText, ctx);
             text = result.refinedText || rawText;
@@ -1300,7 +1355,7 @@ if (app) {
         } catch (err: any) {
           console.error('[Main] Refine failed, injecting raw ASR:', err.message);
           sendToRenderer('voice:refine-failed', { error: err.message });
-          if (!injectResult) injectResult = await injectText(rawText);
+          injectResult = await injectText(rawText);
           text = rawText;
         }
         addHistoryEntry(text, text.length, originalText, refinementProvider?.name || null);
@@ -1383,15 +1438,23 @@ if (app) {
   });
 
   // Play system notification sound via Win32 MessageBeep.
+  // Play system notification sound via Win32 MessageBeep.
   // MB_ICONASTERISK = pleasant high-pitched chime built into Windows.
   let _msgBeep: any = null;
-  ipcMain.handle('voice:play-sound', async () => {
+  ipcMain.handle('voice:play-sound', async (_event, type?: string) => {
     try {
       if (!_msgBeep) {
         const user32 = koffi.load('user32.dll');
         _msgBeep = user32.func('int MessageBeep(int)');
       }
-      _msgBeep(0x00000040); // MB_ICONASTERISK
+      // Map sound type to MessageBeep icon constant
+      const iconMap: Record<string, number> = {
+        start: 0x00000040, // MB_ICONASTERISK — recording start
+        stop:  0x00000000, // MB_OK (simple beep) — recording stop
+        error: 0x00000010, // MB_ICONHAND — error
+      };
+      const icon = type && iconMap[type] !== undefined ? iconMap[type] : 0x00000040;
+      _msgBeep(icon);
     } catch { /* ignore */ }
   });
 
@@ -1533,9 +1596,12 @@ if (app) {
       existing.asrProvider = p;
       writeJSON(filepath, existing);
       initRecognition();
-      // Notify settings window to sync
+      // Notify both windows to sync
       if (settingsWindow && !settingsWindow.isDestroyed()) {
         settingsWindow.webContents.send('settings:changed', { asrProvider: p });
+      }
+      if (floatingWindow && !floatingWindow.isDestroyed()) {
+        sendToRenderer('settings:changed', { asrProvider: p });
       }
     },
     // Record mode
@@ -1548,6 +1614,9 @@ if (app) {
       writeJSON(filepath, existing);
       if (settingsWindow && !settingsWindow.isDestroyed()) {
         settingsWindow.webContents.send('settings:changed', { recordMode: mode });
+      }
+      if (floatingWindow && !floatingWindow.isDestroyed()) {
+        sendToRenderer('settings:changed', { recordMode: mode });
       }
     },
     // Mute on record

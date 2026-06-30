@@ -14,6 +14,7 @@ let electronProcess = null;
 let viteProcess = null;
 let isBuilding = false;
 let pendingRestart = false;
+let watcher = null;
 
 function waitForPort(port, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
@@ -56,7 +57,11 @@ function buildMain() {
 async function startElectron() {
   if (electronProcess) {
     console.log('[dev] Killing old Electron...');
-    try { spawn('taskkill', ['/f', '/t', '/pid', String(electronProcess.pid)], { shell: true }); } catch {}
+    if (process.platform === 'win32') {
+      try { spawn('taskkill', ['/f', '/t', '/pid', String(electronProcess.pid)], { shell: true }); } catch {}
+    } else {
+      try { process.kill(electronProcess.pid, 'SIGTERM'); } catch {}
+    }
     try { electronProcess.kill(); } catch {}
     electronProcess = null;
   }
@@ -85,6 +90,7 @@ function scheduleRestart() {
 
   if (isBuilding) {
     pendingRestart = true;
+    restartScheduled = false;
     return;
   }
 
@@ -136,6 +142,19 @@ triggerServer.on('error', (err) => {
   console.error(`[dev] Trigger port ${TRIGGER_PORT} unavailable:`, err.message);
 });
 
+function cleanup(exitCode = 0) {
+  console.log('[dev] Shutting down...');
+  if (watcher) watcher.close();
+  triggerServer.close();
+  if (electronProcess) electronProcess.kill();
+  if (viteProcess) viteProcess.kill();
+  process.exit(exitCode);
+}
+
+// Register signal handlers FIRST, before any async work
+process.on('SIGINT', () => cleanup(0));
+process.on('SIGTERM', () => cleanup(0));
+
 try {
   console.log('[dev] Waiting for Vite on port', VITE_PORT, '...');
   await waitForPort(VITE_PORT);
@@ -149,7 +168,7 @@ try {
   console.log('[dev] Watching electron/ for changes (chokidar)...');
 
   let watchTimer = null;
-  const watcher = chokidar.watch([
+  watcher = chokidar.watch([
     path.join(ROOT, 'electron/**/*.ts'),
   ], {
     cwd: ROOT,
@@ -170,18 +189,7 @@ try {
   watcher.on('change', onFileChange);
   watcher.on('add', onFileChange);
 
-  // Handle Ctrl+C gracefully
-  process.on('SIGINT', () => {
-    console.log('[dev] Shutting down...');
-    watcher.close();
-    triggerServer.close();
-    if (electronProcess) electronProcess.kill();
-    if (viteProcess) viteProcess.kill();
-    process.exit(0);
-  });
-
 } catch (err) {
   console.error('[dev]', err.message);
-  if (viteProcess) viteProcess.kill();
-  process.exit(1);
+  cleanup(1);
 }

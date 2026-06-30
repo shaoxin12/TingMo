@@ -25,6 +25,7 @@ export class FunASRCloudProvider implements IRecognitionProvider {
     audioBuffer: Buffer,
     _sampleRate: number,
     lang?: string,
+    signal?: AbortSignal,
   ): Promise<RecognitionResult> {
     const t0 = performance.now();
     const baseUrl = this.baseUrl.replace(/\/$/, '');
@@ -44,6 +45,9 @@ export class FunASRCloudProvider implements IRecognitionProvider {
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15000);
+      if (signal) {
+        signal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
 
       try {
         const res = await fetch(url, {
@@ -78,9 +82,17 @@ export class FunASRCloudProvider implements IRecognitionProvider {
       }
 
       console.log('[Whisper] Split into', chunks.length, 'chunks, sending parallel');
-      const results = await Promise.all(
+      const settled = await Promise.allSettled(
         chunks.map((wav, i) => callWhisper(wav, i + 1)),
       );
+      const results = settled
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+        .map(r => r.value);
+
+      if (results.length === 0) {
+        const firstErr = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        throw firstErr?.reason || new Error('All Whisper chunks failed');
+      }
 
       const text = joinChunkResults(results);
       console.log('[Whisper] Final:', text.length, 'chars —', text.slice(0, 120));

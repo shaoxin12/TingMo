@@ -1,9 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useI18n } from '../../i18n/context';
 import { useModelStore } from '../../store/model';
 
 export const ModelPanel: React.FC = () => {
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const { status, progress, errorMessage, modelPath, setProgress, setError, setReady, setStatus } = useModelStore();
 
   useEffect(() => {
@@ -19,14 +21,15 @@ export const ModelPanel: React.FC = () => {
           if (r?.exists) setReady(r.path || '');
         });
       } else if (data.stage === 'error') {
-        setError(data.error || t('model.error'));
+        setError(data.error || tRef.current('model.error'));
       } else {
         setProgress(data.stage, data.percent);
       }
     });
 
     return () => { if (unsub) unsub(); };
-  }, [t, setProgress, setError, setReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setProgress, setError, setReady]);
 
   const handleDownload = async () => {
     setStatus('downloading');

@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import { join } from 'path';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'fs';
 
 // ── Types ───────────────────────────────────────────────────────
 export interface HistoryEntry {
@@ -53,8 +53,8 @@ function atomicWrite(filepath: string, data: unknown): void {
   const tmp = filepath + '.tmp';
   writeFileSync(tmp, JSON.stringify(data), 'utf-8');
   try {
-    copyFileSync(tmp, filepath);
-    unlinkSync(tmp);
+    // renameSync is atomic on NTFS within the same directory
+    renameSync(tmp, filepath);
   } catch {
     // Fallback: direct write
     writeFileSync(filepath, JSON.stringify(data), 'utf-8');
@@ -154,7 +154,11 @@ export function loadHistory(): HistoryEntry[] {
   return historyCache as HistoryEntry[];
 }
 
+const MAX_HISTORY = 10000;
+
 function saveHistory(h: HistoryEntry[]): void {
+  // Cap to prevent unbounded growth over months of use
+  if (h.length > MAX_HISTORY) h = h.slice(0, MAX_HISTORY);
   historyCache = h;
   atomicWrite(historyPath(), h);
 }

@@ -10,6 +10,10 @@ files:
   - package.json
   - assets
 asar: true
+# NOTE: asarUnpack paths can exceed Windows MAX_PATH (260 chars) for deeply nested
+# native modules. The installer already has allowToChangeInstallationDirectory: true
+# so users can choose a short install path. If MAX_PATH issues arise, consider
+# using extraResources to copy native modules to a flat directory outside asar.
 asarUnpack:
   - node_modules/onnxruntime-node/**
   - node_modules/koffi/**

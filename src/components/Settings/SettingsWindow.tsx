@@ -100,29 +100,22 @@ export const SettingsWindow: React.FC = () => {
     }
   }, [llmProvider, llmApiKey, llmModel, llmBaseUrl, t]);
 
-  // Skip first render on all effects
+  // ── Side-effects: reinit recognition on ASR changes ──
   const didMountRef = useRef(false);
   useEffect(() => { didMountRef.current = true; }, []);
 
-  // Debounced save + reinit: ASR changes → reinitRecognition only
   useEffect(() => {
     if (!didMountRef.current) return;
     const timer = setTimeout(async () => {
-      await window.tingmo?.saveAppSettings({
-        asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey,
-      });
       await window.tingmo?.reinitRecognition();
     }, 200);
     return () => clearTimeout(timer);
   }, [asrProvider, asrCloudProvider, asrCloudModel, asrCloudApiKey]);
 
-  // Debounced save + reinit: LLM changes → initRefinement only
+  // ── Side-effects: reinit LLM on refinement changes ──
   useEffect(() => {
     if (!didMountRef.current) return;
     const timer = setTimeout(async () => {
-      await window.tingmo?.saveAppSettings({
-        refineEnabled, polishMode, llmProvider, llmModel, llmBaseUrl, llmApiKey,
-      });
       await window.tingmo?.initRefinement();
     }, 200);
     return () => clearTimeout(timer);
@@ -137,13 +130,17 @@ export const SettingsWindow: React.FC = () => {
     return (window.tingmo as any)?.onSettingsChanged?.((data: Record<string, unknown>) => {
       if (typeof data.muteOnRecord === 'boolean') setMuteOnRecord(data.muteOnRecord);
       if (typeof data.recordMode === 'string') {
-        // recordMode changes are handled by main process directly
+        setRecordMode(data.recordMode as 'toggle' | 'hold');
       }
       if (typeof data.asrProvider === 'string') {
         setAsrProvider(data.asrProvider as 'local' | 'cloud');
       }
+      if (typeof data.uiSoundEnabled === 'boolean') setUiSoundEnabled(data.uiSoundEnabled);
+      if (typeof data.refineEnabled === 'boolean') setRefineEnabled(data.refineEnabled);
+      if (typeof data.polishMode === 'string') setPolishMode(data.polishMode);
+      if (typeof data.useDictionary === 'boolean') setUseDictionary(data.useDictionary);
     });
-  }, [setMuteOnRecord, setAsrProvider]);
+  }, [setMuteOnRecord, setRecordMode, setAsrProvider, setUiSoundEnabled, setRefineEnabled, setPolishMode, setUseDictionary]);
 
   // Maximize state for window control button
   const [isMaximized, setIsMaximized] = useState(false);

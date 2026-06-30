@@ -79,9 +79,19 @@ function downloadFile(
   return new Promise((resolve, reject) => {
     const hostname = new URL(url).hostname;
 
-    // Check for partial file to resume
-    const existingSize = fs.existsSync(dest) ? fs.statSync(dest).size : 0;
-    let resumeFrom = existingSize;
+    // Check for partial file to resume — validate size makes sense
+    let resumeFrom = 0;
+    if (fs.existsSync(dest)) {
+      const stat = fs.statSync(dest);
+      // Only resume if the partial file looks valid (>0 and not suspiciously large)
+      if (stat.size > 0 && stat.size < 5 * 1024 * 1024 * 1024) { // < 5GB sanity check
+        resumeFrom = stat.size;
+      } else {
+        // Corrupted or oversized — start fresh
+        try { fs.unlinkSync(dest); } catch { /* ignore */ }
+        resumeFrom = 0;
+      }
+    }
 
     function attempt(redirectUrl: string, retriesLeft: number): void {
       const parsed = new URL(redirectUrl);
@@ -110,7 +120,7 @@ function downloadFile(
           const resolved = new URL(location, redirectUrl).href;
           const destHost = (() => { try { return new URL(resolved).hostname; } catch { return '?'; } })();
           console.log(`[ModelDL] Redirect to ${destHost}`);
-          attempt(resolved, retriesLeft);
+          attempt(resolved, retriesLeft - 1);
           return;
         }
 
@@ -210,11 +220,18 @@ function downloadFile(
   });
 }
 
+// Promise-based deduplication — prevents two concurrent ensureModel calls
+// from both starting downloads.
+let downloadPromise: Promise<string> | null = null;
+
 export function ensureModel(
   modelDir: string,
   onProgress: (p: DownloadProgress) => void,
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
+  // If a download is already in progress, return the existing promise
+  if (downloadPromise) return downloadPromise;
+
+  downloadPromise = new Promise<string>((resolve, reject) => {
     const funasrDir = path.join(modelDir, 'funasr');
     const asrModel = path.join(funasrDir, 'model.int8.onnx');
     const tokensFile = path.join(funasrDir, 'tokens.txt');
@@ -290,7 +307,11 @@ export function ensureModel(
         console.log(`[ModelDL] Source ${source.name} failed: ${err.message}`);
         // Clean up temp archive file, but keep any successfully downloaded raw files
         try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
-        trySources(index + 1);
+        if (MODEL_SOURCES[index + 1]) {
+          await trySources(index + 1);
+        } else {
+          throw err;
+        }
       }
     }
 
@@ -299,4 +320,9 @@ export function ensureModel(
       reject(err);
     });
   });
+
+  // Clear the dedup promise when done (success or failure)
+  downloadPromise.finally(() => { downloadPromise = null; });
+
+  return downloadPromise;
 }

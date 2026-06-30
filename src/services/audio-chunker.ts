@@ -7,6 +7,12 @@ export const OVERLAP_SECS = 1;
 
 /** Parse WAV Buffer → Float32Array PCM samples + sample rate */
 export function parseWAV(buf: Buffer): { samples: Float32Array; sampleRate: number } {
+  // Validate RIFF/WAVE header
+  if (buf.length < 44) throw new Error('WAV file too short (min 44 bytes)');
+  const riff = String.fromCharCode(...new Uint8Array(buf.subarray(0, 4)));
+  const wave = String.fromCharCode(...new Uint8Array(buf.subarray(8, 12)));
+  if (riff !== 'RIFF' || wave !== 'WAVE') throw new Error('Not a valid WAV file');
+
   const sampleRate = buf.readUInt32LE(24);
   const numSamples = Math.floor((buf.length - 44) / 2);
   const samples = new Float32Array(numSamples);
@@ -35,7 +41,7 @@ export function encodeWAV(samples: Float32Array, sampleRate: number): Buffer {
   buf.writeUInt32LE(dataSize, 40);
   for (let i = 0; i < samples.length; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]));
-    buf.writeInt16LE(s < 0 ? s * 0x8000 : s * 0x7FFF, 44 + i * 2);
+    buf.writeInt16LE(Math.round(s * 32767), 44 + i * 2);
   }
   return buf;
 }
@@ -69,8 +75,12 @@ export function splitWavChunks(
     const end = Math.min(start + chunkLen, samples.length);
     const segment = samples.slice(start, end);
 
-    // Merge tiny trailing chunk into previous
+    // Push remaining as final chunk if it has meaningful content
     if (segment.length < minChunkLen && chunks.length > 0) {
+      const remainingSecs = segment.length / sampleRate;
+      if (remainingSecs >= 0.5) {
+        chunks.push(encodeWAV(segment, sampleRate));
+      }
       break;
     }
     chunks.push(encodeWAV(segment, sampleRate));
@@ -88,7 +98,7 @@ export function splitWavChunks(
  */
 export function dedupOverlap(prev: string, next: string, maxLen?: number): string {
   const minLen = 2;
-  const max = Math.min(prev.length, next.length, maxLen ?? 15);
+  const max = Math.min(prev.length, next.length, maxLen ?? Math.min(prev.length, next.length, 50));
   for (let len = max; len >= minLen; len--) {
     const suffix = prev.slice(-len);
     if (next.startsWith(suffix)) {

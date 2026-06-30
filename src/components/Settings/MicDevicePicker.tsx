@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useI18n } from '../../i18n/context';
 import { NbSelect } from './NbSelect';
 
@@ -11,7 +11,7 @@ export const MicDevicePicker: React.FC<Props> = ({ value, onChange }) => {
   const { t } = useI18n();
   const [devices, setDevices] = useState<Array<{ deviceId: string; label: string }>>([]);
 
-  useEffect(() => {
+  const refreshDevices = useCallback(() => {
     navigator.mediaDevices?.enumerateDevices().then((devs) => {
       const inputs = devs
         .filter((d) => d.kind === 'audioinput' && d.deviceId)
@@ -19,6 +19,15 @@ export const MicDevicePicker: React.FC<Props> = ({ value, onChange }) => {
       if (inputs.length > 0) setDevices(inputs);
     }).catch(() => {});
   }, [t]);
+
+  useEffect(() => {
+    refreshDevices();
+    // Listen for hardware changes (plug/unplug)
+    navigator.mediaDevices?.addEventListener('devicechange', refreshDevices);
+    return () => {
+      navigator.mediaDevices?.removeEventListener('devicechange', refreshDevices);
+    };
+  }, [refreshDevices]);
 
   if (devices.length < 2) return null;
 

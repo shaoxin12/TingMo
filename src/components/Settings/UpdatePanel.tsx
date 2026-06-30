@@ -3,6 +3,9 @@ import { useI18n } from '../../i18n/context';
 
 type CheckState = 'idle' | 'checking' | 'ok' | 'fail';
 
+/** Detect a version string like "v0.4.1" or "v1.2.3-beta" in text */
+const HAS_VERSION = /v\d+\.\d+/;
+
 export const UpdatePanel: React.FC = () => {
   const { t } = useI18n();
   const [checkState, setCheckState] = useState<CheckState>('idle');
@@ -54,10 +57,17 @@ export const UpdatePanel: React.FC = () => {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await window.tingmo?.downloadUpdate();
+      const result = await window.tingmo?.downloadUpdate();
+      if (result && !result.success) {
+        setDownloading(false);
+        setCheckState('fail');
+        setStatusMsg(t('update.error'));
+      }
+      // On success, onUpdateDownloaded callback will handle state transition
     } catch {
       setDownloading(false);
       setCheckState('fail');
+      setStatusMsg(t('update.error'));
     }
   };
 
@@ -66,6 +76,8 @@ export const UpdatePanel: React.FC = () => {
   };
 
   const btnClass = `nb-btn nb-btn-test ${checkState === 'checking' ? 'nb-btn-test-loading' : ''} ${checkState === 'ok' ? 'nb-btn-test-ok' : ''} ${checkState === 'fail' ? 'nb-btn-test-fail' : ''}`;
+
+  const showDownload = checkState === 'ok' && HAS_VERSION.test(statusMsg);
 
   return (
     <div>
@@ -88,7 +100,7 @@ export const UpdatePanel: React.FC = () => {
             <button className={btnClass} onClick={handleCheck} disabled={checkState === 'checking'}>
               {checkState === 'checking' ? t('update.checking') : checkState === 'ok' ? '✓' : checkState === 'fail' ? '✗' : t('update.check')}
             </button>
-            {checkState === 'ok' && statusMsg.includes('v') && (
+            {showDownload && (
               <button className="nb-btn" onClick={handleDownload} disabled={downloading} style={{ fontSize: 11, padding: '3px 10px', flex: 'none', marginLeft: 6 }}>
                 {downloading ? t('update.downloading') + '...' : t('update.download')}
               </button>

@@ -17,7 +17,12 @@ const I18nContext = createContext<I18nContextValue>({
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const uiLanguage = useSettingsStore((s) => s.uiLanguage);
-  const locale = uiLanguage as Locale;
+  const locale = (uiLanguage as Locale) || 'zh-CN';
+
+  // NOTE: We intentionally render immediately with the default language (zh-CN)
+  // rather than blocking on store hydration. Blocking with return-null causes the
+  // frameless settings window to show as a transparent/black empty rectangle for
+  // 1-2 seconds, which is far worse than a one-frame language flash.
 
   const value: I18nContextValue = {
     locale,

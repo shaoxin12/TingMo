@@ -75,8 +75,9 @@ const DEFAULT_HOTKEY = '右 Alt';
 const DEFAULT_TRANSLATE_HOTKEY = '右 Shift + 右 Alt';
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingWrites = false;
 function schedulePersist(state: SettingsState): void {
-  if (!state._hydrated) return;
+  if (!state._hydrated) { _pendingWrites = true; return; }
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     const w = window as any;
@@ -207,11 +208,32 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           uiSoundEnabled: saved.uiSoundEnabled ?? true,
         });
       }
+      // Listen for IPC settings changes from main process (cross-window sync)
+      w.tingmo?.onSettingsChanged?.((data: Record<string, unknown>) => {
+        const updates: Partial<SettingsState> = {};
+        if (typeof data.asrProvider === 'string') updates.asrProvider = data.asrProvider as ASRProvider;
+        if (typeof data.recordMode === 'string') updates.recordMode = data.recordMode as RecordMode;
+        if (typeof data.muteOnRecord === 'boolean') updates.muteOnRecord = data.muteOnRecord;
+        if (typeof data.language === 'string') updates.language = data.language as Language;
+        if (typeof data.translateTarget === 'string') updates.translateTarget = data.translateTarget as TranslateLang;
+        if (typeof data.uiLanguage === 'string') updates.uiLanguage = data.uiLanguage as UILanguage;
+        if (typeof data.uiSoundEnabled === 'boolean') updates.uiSoundEnabled = data.uiSoundEnabled;
+        if (typeof data.refineEnabled === 'boolean') updates.refineEnabled = data.refineEnabled;
+        if (typeof data.polishMode === 'string') updates.polishMode = data.polishMode;
+        if (typeof data.useDictionary === 'boolean') updates.useDictionary = data.useDictionary;
+        if (typeof data.launchAtStartup === 'boolean') updates.launchAtStartup = data.launchAtStartup;
+        if (typeof data.llmProvider === 'string') updates.llmProvider = data.llmProvider;
+        if (typeof data.llmModel === 'string') updates.llmModel = data.llmModel;
+        if (typeof data.llmBaseUrl === 'string') updates.llmBaseUrl = data.llmBaseUrl;
+        if (typeof data.asrCloudProvider === 'string') updates.asrCloudProvider = data.asrCloudProvider;
+        if (typeof data.asrCloudModel === 'string') updates.asrCloudModel = data.asrCloudModel;
+        if (Object.keys(updates).length > 0) set(updates);
+      });
     } catch (err) {
       console.error('[Settings] Failed to hydrate:', err);
     } finally {
       set({ _hydrated: true });
+      if (_pendingWrites) { _pendingWrites = false; schedulePersist(get()); }
     }
   },
 }));
-

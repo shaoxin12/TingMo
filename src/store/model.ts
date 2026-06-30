@@ -28,9 +28,10 @@ export const useModelStore = create<ModelDownloadState>((set) => ({
   setStatus: (status) => set({ status }),
   setProgress: (_stage, percent) => {
     const stage = _stage as string;
+    const currentStatus = useModelStore.getState().status;
     const newStatus: ModelStatus =
       stage === 'downloading' ? 'downloading' :
-      stage === 'extracting' ? 'extracting' : 'downloading';
+      stage === 'extracting' ? 'extracting' : currentStatus;
     set({ status: newStatus, progress: percent });
   },
   setError: (errorMessage) => set({ status: 'error', errorMessage }),

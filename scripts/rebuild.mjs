@@ -1,13 +1,23 @@
-﻿import { connect } from 'net';
+import { connect } from 'net';
 const PORT = 5174;
 const HOST = '127.0.0.1';
 
 const socket = connect(PORT, HOST, () => {
-  socket.end('rebuild');
-  setTimeout(() => {
+  // flush data before exit — wait for socket to fully close
+  socket.end('rebuild', () => {
     console.log('[rebuild] Trigger sent to dev.mjs');
     process.exit(0);
-  }, 100);
+  });
+  // safety timeout
+  setTimeout(() => process.exit(1), 5000);
+});
+
+// connection timeout — fail fast if dev.mjs is not running
+socket.setTimeout(3000);
+socket.on('timeout', () => {
+  console.error('[rebuild] Connection timed out. Is dev server running?');
+  socket.destroy();
+  process.exit(1);
 });
 
 socket.on('error', (err) => {

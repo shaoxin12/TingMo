@@ -13,6 +13,7 @@ type StreamState = {
   ws: WebSocket;
   taskId: string;
   text: string;
+  partialText: string; // latest non-final (sentence_end: false) result for fallback
   resolve: ((text: string) => void) | null;
   reject: ((err: Error) => void) | null;
   timer: ReturnType<typeof setTimeout> | null;
@@ -39,6 +40,11 @@ export class AliyunASRProvider implements IRecognitionProvider {
   // ── Streaming mode ──────────────────────────────────────
 
   async startStream(sampleRate: number, lang: string): Promise<void> {
+    // Clean up any previous stream first (guard against concurrent calls)
+    if (this._stream) {
+      this._cleanupStream();
+    }
+
     const self = this;
     const taskId = crypto.randomUUID();
 
@@ -53,7 +59,7 @@ export class AliyunASRProvider implements IRecognitionProvider {
       });
 
       const st: StreamState = {
-        ws, taskId, text: '', resolve: null, reject: null, timer: null, started: false,
+        ws, taskId, text: '', partialText: '', resolve: null, reject: null, timer: null, started: false,
       };
       self._stream = st;
 
@@ -99,12 +105,17 @@ export class AliyunASRProvider implements IRecognitionProvider {
           if (event === 'result-generated') {
             const sentence = msg.payload?.output?.sentence;
             if (sentence && !sentence.heartbeat) {
+              const text = sentence.text || '';
               if (sentence.sentence_end) {
                 // Final result for this sentence — accumulate
-                if (sentence.text) {
-                  st.text += (st.text ? ' ' : '') + sentence.text;
-                  console.log('[Aliyun] Result (final):', sentence.text.slice(0, 80));
+                if (text) {
+                  st.text += (st.text ? ' ' : '') + text;
+                  st.partialText = '';
+                  console.log('[Aliyun] Result (final):', text.slice(0, 80));
                 }
+              } else {
+                // Non-final (interim) result — track for fallback
+                st.partialText = text;
               }
             }
             return;
@@ -144,7 +155,8 @@ export class AliyunASRProvider implements IRecognitionProvider {
         console.log('[Aliyun] WS closed, code:', code, 'text:', st.text.slice(0, 80));
         clearTimeout(timeout);
         if (st.resolve) {
-          st.resolve(st.text.trim());
+          const fallback = st.text || st.partialText || '';
+          st.resolve(fallback.trim());
         } else if (!st.started) {
           reject(new Error(`Aliyun WS closed before task-started (code ${code})`));
         }
@@ -165,8 +177,10 @@ export class AliyunASRProvider implements IRecognitionProvider {
   endStream(): Promise<string> {
     const st = this._stream;
     if (!st || st.ws.readyState !== WebSocket.OPEN) {
+      // Use accumulated text or partial text as fallback when WS is already closed
+      const fallback = (st?.text || st?.partialText || '').trim();
       this._cleanupStream();
-      return Promise.resolve(st?.text?.trim() || '');
+      return Promise.resolve(fallback);
     }
 
     return new Promise((resolve, reject) => {
@@ -186,7 +200,8 @@ export class AliyunASRProvider implements IRecognitionProvider {
       st.timer = setTimeout(() => {
         console.log('[Aliyun] Timeout waiting for task-finished, using accumulated text');
         if (st.resolve) {
-          st.resolve(st.text.trim());
+          const fallback = st.text || st.partialText || '';
+          st.resolve(fallback.trim());
         }
         this._cleanupStream();
       }, 15000);
@@ -212,7 +227,13 @@ export class AliyunASRProvider implements IRecognitionProvider {
     try {
       const base64 = audioBuffer.toString('base64');
       const dataUrl = `data:audio/wav;base64,${base64}`;
-      const httpModel = this.model.includes('realtime') ? 'fun-asr' : this.model;
+      const REALTIME_TO_HTTP: Record<string, string> = {
+        'fun-asr-realtime': 'fun-asr',
+        'qwen3-asr-flash-realtime': 'qwen3-asr-flash',
+        'qwen3.5-omni-plus-realtime': 'qwen3.5-omni-plus',
+        'fun-asr-flash': 'fun-asr-flash',
+      };
+      const httpModel = REALTIME_TO_HTTP[this.model] || this.model;
 
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 25000);

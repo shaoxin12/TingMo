@@ -1,4 +1,4 @@
-﻿import type { IRecognitionProvider, RecognitionResult } from './speech-recognition';
+import type { IRecognitionProvider, RecognitionResult } from './speech-recognition';
 import { parseWAV, splitWavChunks, joinChunkResults } from './audio-chunker';
 
 const CHUNK_SECS = 10;
@@ -11,11 +11,21 @@ export class SherpaASRProvider implements IRecognitionProvider {
 
   private recognizer: any = null;
   private sherpa: any = null;
-  // Mutex: sherpa-onnx recognizer is a single instance; createStream/decode are
+  // Promise-based lock: sherpa-onnx recognizer is a single instance; createStream/decode are
   // not concurrency-safe. A zombie full-ASR job (e.g. after safety timeout) would
-  // block streaming chunks. This flag lets asr-chunk fast-return instead of queueing.
-  private busy = false;
-  get isBusy(): boolean { return this.busy; }
+  // block streaming chunks. This lock serializes access instead of fast-returning.
+  private _busy = false;
+  private busyPromise: Promise<void> = Promise.resolve();
+  get isBusy(): boolean { return this._busy; }
+
+  private async acquireLock(): Promise<() => void> {
+    let release: () => void;
+    const prev = this.busyPromise;
+    this.busyPromise = new Promise<void>(resolve => { release = resolve; });
+    this._busy = true;
+    await prev;
+    return () => { this._busy = false; release!(); };
+  }
 
   constructor(private modelDir: string, private langHint: string = '') {}
 
@@ -63,11 +73,7 @@ export class SherpaASRProvider implements IRecognitionProvider {
 
   /** Transcribe raw PCM samples directly (no WAV encode/decode overhead) */
   async transcribeRaw(samples: Float32Array, sampleRate: number, lang?: string, signal?: AbortSignal): Promise<RecognitionResult> {
-    if (this.busy) {
-      console.warn('[SherpaASR] Busy, transcribeRaw skipped');
-      return { text: '', durationMs: 0, language: lang || 'auto', confidence: 0 };
-    }
-    this.busy = true;
+    const release = await this.acquireLock();
     try {
       const t0 = performance.now();
       const totalSecs = samples.length / sampleRate;
@@ -75,7 +81,12 @@ export class SherpaASRProvider implements IRecognitionProvider {
       // Short audio: single pass
       if (totalSecs <= CHUNK_SECS + 2) {
         const stream = this.recognizer.createStream();
-        stream.acceptWaveform(sampleRate, samples);
+        try {
+          stream.acceptWaveform(sampleRate, samples);
+        } catch (e) {
+          stream.free();
+          throw e;
+        }
         this.recognizer.decode(stream);
         const text = this.recognizer.getResult(stream).text || '';
         stream.free();
@@ -94,7 +105,12 @@ export class SherpaASRProvider implements IRecognitionProvider {
         const segment = samples.slice(start, end);
         if (segment.length < chunkLen * 0.5 && texts.length > 0) break;
         const stream = this.recognizer.createStream();
-        stream.acceptWaveform(sampleRate, segment);
+        try {
+          stream.acceptWaveform(sampleRate, segment);
+        } catch (e) {
+          stream.free();
+          throw e;
+        }
         this.recognizer.decode(stream);
         texts.push(this.recognizer.getResult(stream).text || '');
         stream.free();
@@ -105,26 +121,27 @@ export class SherpaASRProvider implements IRecognitionProvider {
       console.log('[SherpaASR] Raw done,', (performance.now() - t0).toFixed(0), 'ms,', text.length, 'chars');
       return { text, durationMs: performance.now() - t0, language: lang || 'auto', confidence: 0.85 };
     } finally {
-      this.busy = false;
+      release();
     }
   }
 
   async transcribe(audioBuffer: Buffer, _sampleRate: number, lang?: string, signal?: AbortSignal): Promise<RecognitionResult> {
-    if (this.busy) {
-      console.warn('[SherpaASR] Busy, transcribe skipped');
-      return { text: '', durationMs: 0, language: lang || 'auto', confidence: 0 };
-    }
-    this.busy = true;
+    const release = await this.acquireLock();
     try {
       const t0 = performance.now();
       const { samples } = parseWAV(audioBuffer);
-      const SAMPLE_RATE = 16000;
+      const SAMPLE_RATE = _sampleRate || 16000;
       const totalSecs = samples.length / SAMPLE_RATE;
 
       // Short audio: single pass
       if (totalSecs <= CHUNK_SECS + 2) {
         const stream = this.recognizer.createStream();
-        stream.acceptWaveform(SAMPLE_RATE, samples);
+        try {
+          stream.acceptWaveform(SAMPLE_RATE, samples);
+        } catch (e) {
+          stream.free();
+          throw e;
+        }
         this.recognizer.decode(stream);
         const text = this.recognizer.getResult(stream).text || '';
         stream.free();
@@ -141,7 +158,12 @@ export class SherpaASRProvider implements IRecognitionProvider {
         if (signal?.aborted) { console.log('[SherpaASR] Aborted, returning partial', texts.length, 'chunks'); break; }
         const { samples: chunkSamples } = parseWAV(wav);
         const stream = this.recognizer.createStream();
-        stream.acceptWaveform(SAMPLE_RATE, chunkSamples);
+        try {
+          stream.acceptWaveform(SAMPLE_RATE, chunkSamples);
+        } catch (e) {
+          stream.free();
+          throw e;
+        }
         this.recognizer.decode(stream);
         texts.push(this.recognizer.getResult(stream).text || '');
         stream.free();
@@ -151,12 +173,21 @@ export class SherpaASRProvider implements IRecognitionProvider {
       console.log('[SherpaASR] Done,', (performance.now() - t0).toFixed(0), 'ms,', text.length, 'chars');
       return { text, durationMs: performance.now() - t0, language: lang || 'auto', confidence: 0.85 };
     } finally {
-      this.busy = false;
+      release();
     }
   }
 
   async dispose(): Promise<void> {
-    if (this.recognizer) { this.recognizer.free(); this.recognizer = null; }
-    this.isReady = false;
+    // Wait for any in-progress transcription to complete before freeing
+    const release = await this.acquireLock();
+    try {
+      if (this.recognizer) {
+        this.recognizer.free();
+        this.recognizer = null;
+      }
+      this.isReady = false;
+    } finally {
+      release();
+    }
   }
 }

@@ -14,8 +14,8 @@
   --text-secondary: #8899aa;
   --radius: 16px;
   --radius-sm: 8px;
-  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
-  --font-sans: 'JetBrains Mono', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace;
+  --font-sans: 'JetBrains Mono', 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
   --border-color: rgba(0, 229, 255, 0.25);
   --border-error: rgba(255, 85, 85, 0.4);
 }
@@ -951,6 +951,9 @@ html, body, #root {
   background: #161618;
   -webkit-app-region: drag;
   overflow: hidden;
+  /* Work around Chromium DWM alpha compositing artifact on rounded corners */
+  -webkit-backface-visibility: hidden;
+  outline: 1px solid transparent;
   transition: width 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
               height 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
               border-radius 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);

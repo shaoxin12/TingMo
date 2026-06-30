@@ -4,6 +4,9 @@ import { trayT } from './tray-i18n';
 
 type Locale = string;
 
+// ── Mutable locale ref so buildMenu always reads the current value ──
+let trayLocaleRef: { current: Locale } | null = null;
+
 // ── Tray icon creation ────────────────────────────────────
 
 const baseIconPath = join(__dirname, '../assets/icons/icon.png');
@@ -30,6 +33,11 @@ const TINT_THRESHOLD_SQ = 22;
 function tintIcon(icon: NativeImage, r: number, g: number, b: number): NativeImage {
   const size = TINT_ICON_SIZE;
   const buf = icon.toBitmap();
+  // Guard: if the bitmap buffer isn't the expected size, return the original icon
+  if (buf.length !== size * size * 4) {
+    console.warn('[Tray] tintIcon: unexpected bitmap size', buf.length, 'expected', size * size * 4);
+    return icon;
+  }
   for (let py = size / 2; py < size; py++) {
     for (let px = size / 2; px < size; px++) {
       const dx = px - size + TINT_RADIUS;
@@ -57,6 +65,9 @@ export function createTray(
   getMuteOnRecord: () => boolean,
   onMuteOnRecordChange: (enabled: boolean) => void,
 ): Tray {
+  // Initialize the mutable locale ref so buildMenu always reads current language
+  trayLocaleRef = { current: locale };
+
   const icon = createTrayIcon('default');
   const tray = new Tray(icon);
   tray.setToolTip(trayT(locale, 'tray.tooltip'));
@@ -66,48 +77,49 @@ export function createTray(
     const asrProvider = getAsrProvider();
     const recordMode = getRecordMode();
     const muteOnRecord = getMuteOnRecord();
+    const currentLocale = trayLocaleRef?.current ?? locale;
 
     return Menu.buildFromTemplate([
       {
-        label: trayT(locale, 'tray.voiceMode.local'),
+        label: trayT(currentLocale, 'tray.voiceMode.local'),
         type: 'radio',
         checked: asrProvider === 'local',
         click: () => onAsrProviderChange('local'),
       },
       {
-        label: trayT(locale, 'tray.voiceMode.cloud'),
+        label: trayT(currentLocale, 'tray.voiceMode.cloud'),
         type: 'radio',
         checked: asrProvider === 'cloud',
         click: () => onAsrProviderChange('cloud'),
       },
       { type: 'separator' },
       {
-        label: trayT(locale, 'tray.recordMode.toggle'),
+        label: trayT(currentLocale, 'tray.recordMode.toggle'),
         type: 'radio',
         checked: recordMode === 'toggle',
         click: () => onRecordModeChange('toggle'),
       },
       {
-        label: trayT(locale, 'tray.recordMode.hold'),
+        label: trayT(currentLocale, 'tray.recordMode.hold'),
         type: 'radio',
         checked: recordMode === 'hold',
         click: () => onRecordModeChange('hold'),
       },
       { type: 'separator' },
       {
-        label: trayT(locale, 'tray.muteOnRecord'),
+        label: trayT(currentLocale, 'tray.muteOnRecord'),
         type: 'checkbox',
         checked: muteOnRecord,
         click: (mi) => onMuteOnRecordChange(mi.checked),
       },
       { type: 'separator' },
       {
-        label: trayT(locale, 'tray.settings'),
+        label: trayT(currentLocale, 'tray.settings'),
         click: () => openSettings(),
       },
       { type: 'separator' },
       {
-        label: trayT(locale, 'tray.quit'),
+        label: trayT(currentLocale, 'tray.quit'),
         click: () => {
           const { app } = require('electron');
           app.quit();
@@ -129,6 +141,7 @@ export function createTray(
 
 export function updateTrayLanguage(tray: Tray | null, locale: Locale, _openSettings: () => void): void {
   if (!tray || tray.isDestroyed()) return;
+  if (trayLocaleRef) trayLocaleRef.current = locale;
   tray.setToolTip(trayT(locale, 'tray.tooltip'));
 }
 

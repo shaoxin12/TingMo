@@ -140,6 +140,10 @@ export function startHotkey(vkCode?: number): void {
         pressCallback?.();
         // Inject synthetic key-up so Windows doesn't think the hotkey is stuck.
         injectKeyUp();
+        // Reset wasHandled immediately so translate combo detection isn't blocked
+        // while the physical key is still held (synthetic key-up has LLKHF_INJECTED
+        // and will be passed through without triggering the normal reset logic)
+        wasHandled = false;
       }
       if (action.triggerReleased) {
         wasHandled = false;

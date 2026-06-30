@@ -1,11 +1,9 @@
 import { app } from 'electron';
 import { join } from 'path';
-import { appendFileSync, existsSync, mkdirSync, statSync, unlinkSync } from 'fs';
+import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'fs';
 
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_LOG_FILES = 3;
-
-let logPath: string | null = null;
 
 function ensureLogDir(): string {
   const dir = join(app.getPath('userData'), 'logs');
@@ -14,13 +12,10 @@ function ensureLogDir(): string {
 }
 
 function getLogPath(): string {
-  if (!logPath) {
-    const dir = ensureLogDir();
-    const d = new Date();
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    logPath = join(dir, `tingmo-${dateStr}.log`);
-  }
-  return logPath;
+  const dir = ensureLogDir();
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return join(dir, `tingmo-${dateStr}.log`);
 }
 
 function rotateIfNeeded(filepath: string): void {
@@ -32,10 +27,10 @@ function rotateIfNeeded(filepath: string): void {
         if (i === MAX_LOG_FILES - 1) {
           if (existsSync(old)) unlinkSync(old);
         } else if (existsSync(old)) {
-          require('fs').renameSync(old, next);
+          renameSync(old, next);
         }
       }
-      require('fs').renameSync(filepath, filepath + '.0');
+      renameSync(filepath, filepath + '.0');
     }
   } catch { /* rotation is best-effort */ }
 }
