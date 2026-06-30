@@ -100,7 +100,7 @@ Open source, tray-resident. No skins, no subscriptions. Just a floating capsule 
 
 ## Installation
 
-Download the latest installer from [Releases](https://github.com/shaoxin12/tingmo/releases).
+Download the latest installer from [Releases](https://github.com/shaoxin12/tingmo/releases). If Windows blocks the installer, right-click → Properties → check "Unblock".
 
 **Requirements**: Windows x64
 

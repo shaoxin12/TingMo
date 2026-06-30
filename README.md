@@ -100,7 +100,7 @@
 
 ## 安装
 
-从 [Releases](https://github.com/shaoxin12/tingmo/releases) 下载最新安装包。
+从 [Releases](https://github.com/shaoxin12/tingmo/releases) 下载最新安装包。如果安装时被 Windows 阻止，右键安装包 → 属性 → 勾选「解除锁定」即可。
 
 **系统要求**：Windows x64
 
