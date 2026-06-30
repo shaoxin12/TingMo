@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n/context';
+import pkg from '../../../package.json';
 
 type CheckState = 'idle' | 'checking' | 'ok' | 'fail';
 
@@ -18,7 +19,7 @@ export const UpdatePanel: React.FC = () => {
     const unsubs: (() => void)[] = [];
 
     const unsub1 = window.tingmo?.onUpdateAvailable?.((data) => {
-      setStatusMsg(t('update.available') + ' (v' + data.version + ')');
+      setStatusMsg(t('update.available') + ' (V' + data.version + ')');
     });
     if (unsub1) unsubs.push(unsub1);
 
@@ -44,7 +45,7 @@ export const UpdatePanel: React.FC = () => {
       const result = await window.tingmo?.checkForUpdates();
       if (result?.updateAvailable) {
         setCheckState('ok');
-        setStatusMsg(t('update.available') + ' (v' + result.version + ')');
+        setStatusMsg(t('update.available') + ' (V' + result.version + ')');
       } else {
         setCheckState('ok');
         setStatusMsg(t('update.upToDate'));
@@ -82,7 +83,7 @@ export const UpdatePanel: React.FC = () => {
   return (
     <div>
       <div className="nb-row" style={{ alignItems: 'center' }}>
-        <span className="nb-label" style={{ flex: 'none' }}>{t('update.currentVersion')} <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#666', marginLeft: 4 }}>V0.4.1</span></span>
+        <span className="nb-label" style={{ flex: 'none' }}>{t('update.currentVersion')} <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#666', marginLeft: 4 }}>V{pkg.version}</span></span>
         {downloading && (
           <div style={{ flex: 1, height: 3, background: '#eee', borderRadius: 1, marginRight: 8 }}>
             <div style={{ width: downloadPercent + '%', height: '100%', background: '#FF5A1F', borderRadius: 1, transition: 'width 0.3s' }} />
@@ -97,11 +98,13 @@ export const UpdatePanel: React.FC = () => {
         )}
         {!updateReady ? (
           <>
-            <button className={btnClass} onClick={handleCheck} disabled={checkState === 'checking'}>
-              {checkState === 'checking' ? t('update.checking') : checkState === 'ok' ? '✓' : checkState === 'fail' ? '✗' : t('update.check')}
-            </button>
+            {!showDownload && (
+              <button className={btnClass} onClick={handleCheck} disabled={checkState === 'checking'}>
+                {checkState === 'checking' ? t('update.checking') : checkState === 'fail' ? '✗' : t('update.check')}
+              </button>
+            )}
             {showDownload && (
-              <button className="nb-btn" onClick={handleDownload} disabled={downloading} style={{ fontSize: 11, padding: '3px 10px', flex: 'none', marginLeft: 6 }}>
+              <button className="nb-btn" onClick={handleDownload} disabled={downloading} style={{ fontSize: 11, padding: '3px 10px', flex: 'none' }}>
                 {downloading ? t('update.downloading') + '...' : t('update.download')}
               </button>
             )}
