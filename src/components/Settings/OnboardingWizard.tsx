@@ -12,30 +12,25 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
   const [step, setStep] = useState(0);
   const asrProvider = useSettingsStore((s) => s.asrProvider);
   const setAsrProvider = useSettingsStore((s) => s.setAsrProvider);
-  const asrCloudApiKey = useSettingsStore((s) => s.asrCloudApiKey);
-  const setAsrCloudApiKey = useSettingsStore((s) => s.setAsrCloudApiKey);
-  const llmApiKey = useSettingsStore((s) => s.llmApiKey);
-  const setLlmApiKey = useSettingsStore((s) => s.setLlmApiKey);
   const modelStatus = useModelStore((s) => s.status);
   const modelProgress = useModelStore((s) => s.progress);
   const setModelProgress = useModelStore((s) => s.setProgress);
   const setModelError = useModelStore((s) => s.setError);
   const setModelReady = useModelStore((s) => s.setReady);
 
-  // Both modes have 4 steps: Welcome → Hotkey → Mode → Configure (API keys or model download)
   const maxStep = 3;
 
   const stepTitles = [
     t('onboarding.welcomeTitle'),
     t('onboarding.hotkeyTitle'),
     t('onboarding.modeTitle'),
-    asrProvider === 'cloud' ? t('onboarding.apiKeyTitle') : t('onboarding.modelTitle'),
+    asrProvider === 'cloud' ? t('onboarding.cloudReadyTitle') : t('onboarding.modelTitle'),
   ];
   const stepDescs = [
     t('onboarding.welcomeDesc'),
     t('onboarding.hotkeyDesc'),
     '',
-    asrProvider === 'cloud' ? t('onboarding.apiKeyDesc') : t('onboarding.modelDesc'),
+    asrProvider === 'cloud' ? t('onboarding.cloudReadyDesc') : t('onboarding.modelDesc'),
   ];
 
   const [modelChecked, setModelChecked] = useState(false);
@@ -72,20 +67,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
   }, [t, setModelProgress, setModelError, setModelReady]);
 
   const isDownloading = modelStatus === 'downloading' || modelStatus === 'extracting';
-  const showModelSection = step === 3 && asrProvider !== 'cloud';
-
-  const handleStart = () => {
-    // Validate required fields in cloud mode
-    if (asrProvider === 'cloud') {
-      const trimmedAsr = asrCloudApiKey.trim();
-      if (!trimmedAsr) return;
-      // Ensure store has trimmed values before completing
-      if (trimmedAsr !== asrCloudApiKey) setAsrCloudApiKey(trimmedAsr);
-      const trimmedLlm = llmApiKey.trim();
-      if (trimmedLlm !== llmApiKey) setLlmApiKey(trimmedLlm);
-    }
-    onComplete();
-  };
+  const isCloud = asrProvider === 'cloud';
 
   return (
     <div style={{
@@ -168,50 +150,25 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         </div>
       )}
 
-      {step === 3 && asrProvider === 'cloud' && (
-        <div style={{ maxWidth: 400, width: '100%' }}>
-          <p style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.6 }}>
-            {stepDescs[3]}
-          </p>
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                {t('model.asrCloudApiKey')}
-              </label>
-              <input
-                type="password"
-                value={asrCloudApiKey}
-                onChange={(e) => setAsrCloudApiKey(e.target.value)}
-                placeholder={t('model.asrCloudApiKeyPlaceholder')}
-                style={{
-                  width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ddd',
-                  fontSize: 13, outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                {t('settings.apiKey')}
-              </label>
-              <input
-                type="password"
-                value={llmApiKey}
-                onChange={(e) => setLlmApiKey(e.target.value)}
-                placeholder={t('settings.apiKeyPlaceholder')}
-                style={{
-                  width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ddd',
-                  fontSize: 13, outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <p style={{ fontSize: 11, color: '#999', marginTop: 8 }}>
-              {t('onboarding.apiKeyHint')}
+      {/* Step 3: Cloud — info + link to Settings */}
+      {step === 3 && isCloud && (
+        <div style={{ maxWidth: 400 }}>
+          <div style={{
+            background: '#f7f7f7', borderRadius: 10, padding: '24px 28px',
+            textAlign: 'left', lineHeight: 1.7,
+          }}>
+            <p style={{ fontSize: 14, color: '#333', margin: '0 0 12px' }}>
+              {stepDescs[3]}
+            </p>
+            <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+              {t('onboarding.cloudReadyHint')}
             </p>
           </div>
         </div>
       )}
 
-      {showModelSection && (
+      {/* Step 3: Local — model download */}
+      {step === 3 && !isCloud && (
         <div style={{ maxWidth: 400 }}>
           <p style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.6 }}>
             {stepDescs[3]}
@@ -277,24 +234,14 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         ) : (
           <button
             className="nb-btn"
-            onClick={handleStart}
-            disabled={isDownloading || (asrProvider === 'cloud' && !asrCloudApiKey.trim())}
-            style={{ background: (isDownloading || (asrProvider === 'cloud' && !asrCloudApiKey.trim())) ? '#ccc' : '#FF5A1F', color: '#fff', border: 'none' }}
+            onClick={onComplete}
+            disabled={!isCloud && isDownloading}
+            style={{ background: (!isCloud && isDownloading) ? '#ccc' : '#FF5A1F', color: '#fff', border: 'none' }}
           >
             {t('onboarding.start')}
           </button>
         )}
       </div>
-
-      {/* Hide skip button while downloading to prevent accidental skip mid-download */}
-      {step < maxStep && !isDownloading && (
-        <button
-          onClick={onComplete}
-          style={{ marginTop: 16, background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 12 }}
-        >
-          {t('onboarding.skip')}
-        </button>
-      )}
     </div>
   );
 };

@@ -185,6 +185,8 @@ const D: Record<string, LocaleMap> = {
   'onboarding.apiKeyTitle':     { 'zh-CN': '配置 API Key', 'zh-TW': '配置 API Key', en: 'Configure API Keys', ja: 'APIキーを設定', ko: 'API 키 설정' },
   'onboarding.apiKeyDesc':      { 'zh-CN': '云端引擎需要 API Key。你可以稍后在设置中修改。', 'zh-TW': '雲端引擎需要 API Key。你可以稍後在設定中修改。', en: 'Cloud engine requires API keys. You can change them later in Settings.', ja: 'クラウドエンジンにはAPIキーが必要です。後で設定から変更できます。', ko: '클라우드 엔진에는 API 키가 필요합니다. 나중에 설정에서 변경할 수 있습니다.' },
   'onboarding.apiKeyHint':      { 'zh-CN': '至少填写一个 Key 即可开始使用。', 'zh-TW': '至少填寫一個 Key 即可開始使用。', en: 'Fill in at least one key to get started.', ja: '少なくとも1つのキーを入力すれば開始できます。', ko: '최소 하나의 키를 입력하면 시작할 수 있습니다.' },
+  'onboarding.cloudReadyTitle':  { 'zh-CN': '云端模式就绪', 'zh-TW': '雲端模式就緒', en: 'Cloud mode ready', ja: 'クラウドモード準備完了', ko: '클라우드 모드 준비 완료' },
+  'onboarding.cloudReadyDesc':   { 'zh-CN': '你选择了云端语音引擎。请前往 设置 → 模型 配置 ASR 服务商及 API Key，支持火山引擎、阿里云、OpenAI Whisper 等多家服务商。', 'zh-TW': '你選擇了雲端語音引擎。請前往 設定 → 模型 配置 ASR 服務商及 API Key，支援火山引擎、阿里雲、OpenAI Whisper 等多家服務商。', en: 'You chose the cloud engine. Go to Settings → Model to configure your ASR provider and API key — supporting Volcano, Alibaba, OpenAI Whisper and more.', ja: 'クラウド音声エンジンを選択しました。設定 → モデル でASRプロバイダーとAPIキーを設定してください。Volcano、Alibaba、OpenAI Whisperなどに対応しています。', ko: '클라우드 음성 엔진을 선택했습니다. 설정 → 모델에서 ASR 제공업체와 API 키를 구성하세요. Volcano, Alibaba, OpenAI Whisper 등을 지원합니다.' },
 
   // ── Overview ─────────────────────────────────────────
   'overview.loading':       { 'zh-CN': '加载中...',  'zh-TW': '載入中...',  en: 'Loading...',           ja: '読み込み中...',      ko: '로딩 중...' },
