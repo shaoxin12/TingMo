@@ -31,7 +31,12 @@ export const UpdatePanel: React.FC = () => {
     const unsub1 = window.tingmo?.onUpdateAvailable?.((data) => {
       if (!mountedRef.current) return;
       setCheckState('ok');
-      setStatusMsg(t('update.available') + ' (V' + data.version + ')');
+      // If the detected version matches current, treat as up-to-date
+      if (data.version === pkg.version) {
+        setStatusMsg(t('update.upToDate'));
+      } else {
+        setStatusMsg(t('update.available') + ' (V' + data.version + ')');
+      }
     });
     if (unsub1) unsubs.push(unsub1);
 
@@ -65,9 +70,12 @@ export const UpdatePanel: React.FC = () => {
     try {
       const result = await window.tingmo?.checkForUpdates();
       if (!mountedRef.current) return;
-      if (result?.updateAvailable) {
+      if (result?.updateAvailable && result.version !== pkg.version) {
         setCheckState('ok');
         setStatusMsg(t('update.available') + ' (V' + result.version + ')');
+      } else if (result?.updateAvailable && result.version === pkg.version) {
+        setCheckState('ok');
+        setStatusMsg(t('update.upToDate'));
       } else {
         setCheckState('ok');
         setStatusMsg(t('update.upToDate'));
