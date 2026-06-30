@@ -67,10 +67,9 @@ Open source, tray-resident. No skins, no subscriptions. Just a floating capsule 
 - Built-in 150+ common term corrections (tech vocabulary, Chinese digits → Arabic, letter merging, date normalization)
 
 ### 📊 Stats & History
-- Cumulative recording duration, character count, session count
-- 7-day trend chart + today's stats
-- Last 200 entries with search, copy, and re-injection support
-- 90-day daily statistics
+- Cumulative recording duration, character count, session count (**unlimited** — keeps growing)
+- Last 200 voice entries with search, copy, and re-injection support (older entries auto-pruned)
+- Daily statistics kept for the last 90 days; home tab shows a 7-day trend chart + today's stats
 
 ### 🔄 Auto-Update
 - GitHub Releases based, auto-checks on startup
