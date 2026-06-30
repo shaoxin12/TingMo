@@ -52,6 +52,7 @@ export const HomePanel: React.FC = () => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [search, setSearch] = useState('');
   const [error, setError] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const load = async () => {
     const api = window.tingmo as any;
@@ -188,7 +189,7 @@ export const HomePanel: React.FC = () => {
                   </div>
                   <div className="history-text-row">
                     <div className="history-text">{entry.text}</div>
-                    <button className="nb-btn" style={{ padding: '2px 8px', fontSize: 11, flexShrink: 0 }} onClick={() => window.tingmo?.copyText(entry.text)}>{t('history.copy')}</button>
+                    <button className="nb-btn" style={{ padding: '2px 8px', fontSize: 11, flexShrink: 0, minWidth: 52 }} onClick={() => { window.tingmo?.copyText(entry.text); setCopiedId(entry.id); setTimeout(() => setCopiedId(null), 1500); }}>{copiedId === entry.id ? '✓' : t('history.copy')}</button>
                   </div>
                 </div>
               ))}
