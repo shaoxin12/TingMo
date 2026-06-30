@@ -298,7 +298,6 @@ stats:get / stats:overview                 # 统计数据
 history:get / history:clear                # 历史记录
 update:check / update:download / update:install  # 自动更新
 app:quit                                   # 退出应用
-debug:save-wav                             # 保存调试录音
 ```
 
 ## 模型下载

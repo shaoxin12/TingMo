@@ -1135,15 +1135,6 @@ if (app) {
       const releasePromise = waitForHotkeyRelease(150);
 
       // Debug WAV save — non-blocking
-      setImmediate(() => {
-        try {
-          const fs = require('fs');
-          const debugDir = join(app.getPath('userData'), 'debug_recordings');
-          if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
-          fs.writeFileSync(join(debugDir, `tingmo_${Date.now()}.wav`), buf);
-        } catch { /* ignore */ }
-      });
-
       // ── ASR Inference ────────────────────────────────────
       const asrStart = Date.now();
 
@@ -1420,18 +1411,6 @@ if (app) {
 
 
   // DEBUG: save WAV for testing
-  ipcMain.handle('debug:save-wav', async (_event, buffer: ArrayBuffer, filename: string) => {
-    try {
-      const fs = require('fs');
-      const dir = join(app.getPath('userData'), 'debug_recordings');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(join(dir, filename), Buffer.from(buffer));
-      console.log('[Debug] Saved:', join(dir, filename), 'size:', buffer.byteLength);
-    } catch (err: any) {
-      console.error('[Debug] Save failed:', err.message);
-    }
-  });
-
   ipcMain.handle('voice:copy-text', async (_event, text: string) => {
     const { clipboard } = require('electron');
     clipboard.writeText(text);

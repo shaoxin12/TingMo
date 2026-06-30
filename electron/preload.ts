@@ -93,9 +93,6 @@ const api = {
   // UI sound — played from main process via Win32 MessageBeep (avoids renderer AudioContext issues)
   playSound: (type: string) => ipcRenderer.invoke('voice:play-sound', type),
 
-  // Debug
-  debugSaveWav: (buffer: ArrayBuffer, filename: string) => ipcRenderer.invoke('debug:save-wav', buffer, filename),
-
   // App settings persistence
   loadAppSettings: () => ipcRenderer.invoke('settings:load-app-settings') as Promise<Record<string, unknown>>,
   saveAppSettings: (settings: Record<string, unknown>) => ipcRenderer.invoke('settings:save-app-settings', settings),

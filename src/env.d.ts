@@ -13,7 +13,6 @@ interface TingMoAPI {
   resizeFloating: (width: number, height: number) => Promise<void>;
   copyText: (text: string) => Promise<void>;
   playSound: (type: string) => Promise<void>;
-  debugSaveWav: (buffer: ArrayBuffer, filename: string) => Promise<void>;
   asrChunk: (wavBuf: ArrayBuffer) => Promise<string>;
   asrStreamStart: (sampleRate: number, lang: string) => Promise<void>;
   asrStreamSend: (wavBuf: ArrayBuffer) => Promise<void>;

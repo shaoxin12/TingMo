@@ -208,10 +208,6 @@ npm run release:patch
 npm run test:unit
 ```
 
-### Debugging
-- Every recording auto-saves WAV to `%APPDATA%/TingMo/debug_recordings/`
-- Main process logs prefixed with `[Main]` — visible in terminal or DevTools
-
 ### Known Limitations
 - Windows x64 only
 - SenseVoiceSmall accuracy is limited — pair with LLM refinement or use cloud ASR for best results

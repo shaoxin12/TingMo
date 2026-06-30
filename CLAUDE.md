@@ -2,7 +2,7 @@
 
 按右 Alt 开始录音，说话，再按右 Alt 停止，语音自动转文字注入光标。右 Shift + 右 Alt 触发翻译模式。
 
-**当前版本 V0.4.1**: SenseVoiceSmall 本地 ASR（sherpa-onnx）+ 3 家云端 ASR + 8 家 LLM 润色/翻译，流式注入，原生托盘菜单。
+**当前版本 V0.4.2**: SenseVoiceSmall 本地 ASR（sherpa-onnx）+ 3 家云端 ASR + 8 家 LLM 润色/翻译，流式注入，原生托盘菜单。
 
 > 🎙️ Vibe Coding 项目 — 代码主要由 Claude Code 生成，人工做方向决策和审核。
 
@@ -298,7 +298,6 @@ stats:get / stats:overview                 # 统计数据
 history:get / history:clear                # 历史记录
 update:check / update:download / update:install  # 自动更新
 app:quit                                   # 退出应用
-debug:save-wav                             # 保存调试录音
 ```
 
 ## 模型下载

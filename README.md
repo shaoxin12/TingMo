@@ -208,10 +208,6 @@ npm run release:patch
 npm run test:unit
 ```
 
-### 调试
-- 每次录音自动保存 WAV 到 `%APPDATA%/TingMo/debug_recordings/`
-- 主进程日志带 `[Main]` 前缀，可通过 DevTools 或终端查看
-
 ### 已知限制
 - 仅支持 Windows x64
 - SenseVoiceSmall 精度有限，建议配合 LLM 润色或使用云端 ASR
