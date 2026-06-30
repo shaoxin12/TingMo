@@ -426,6 +426,17 @@ scripts/
 
 ## 近期变更（2026-06-30）
 
+### V0.4.2
+- **系统性 bug 修复**：~55 个 bug 覆盖文本注入（Unicode 代理对、SendInput 部分失败）、ASR/LLM 竞态（Sherpa 锁、火山 WS 泄漏）、热键持久化、浮窗消息排队、流式润色文本残留、模型下载无限重定向等
+- **更新数据保护**：NSIS 安装脚本在卸载前备份 `%APPDATA%/TingMo`、安装后恢复，更新不再丢失设置/API Key/统计/模型
+- **自动更新修复**：补传 `latest.yml`，修复 update-not-available 不通知渲染进程的 bug
+- **引导界面重设计**：去掉跳过按钮、去掉 API Key 输入步骤；云端模式第 3 步嵌入 CloudConfigPanel 组件，支持选择服务商+填 Key+连接测试；本地模式模型下载流程完善（主动检查、未安装提示+下载按钮）
+- **更新面板完善**：挂载时主动检查、版本号对比过滤（已是最新不显示「发现新版本」）、已是最新时按钮变 ✓、左侧绿色文字同步显示「已是最新」、侧边栏版本号与更新面板同步
+- **移除调试代码**：删除 `debug:save-wav` IPC、`debug_recordings/` 自动保存
+- **历史记录复制反馈**：点击复制按钮显示 ✓，1.5 秒后恢复
+- **设置窗口首启黑块修复**：`show:false` + `ready-to-show`
+- **文档全面更新**：README / README_EN / CLAUDE.md
+
 ### V0.4.1
 - **原生托盘菜单**：用 `Menu.buildFromTemplate` + `popUpContextMenu` 替代自定义 BrowserWindow 弹窗，解决定位不准、DWM 阴影、与 Windows 溢出面板冲突等问题
 - **按住模式修复**：快速按松不卡 recognizing（无音频时 cancelRecording）

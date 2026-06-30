@@ -1,4 +1,4 @@
-# TingMo 听墨
+# TingMo
 
 <p align="center">
   <img src="public/icon.png" alt="TingMo" width="96" />
@@ -16,6 +16,7 @@
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" />
   <img src="https://img.shields.io/badge/license-MIT-green" />
   <img src="https://img.shields.io/badge/vibe%20coding-🤖-purple" />
+  <img src="https://img.shields.io/badge/version-0.4.2-orange" />
 </p>
 
 ---
@@ -33,8 +34,8 @@ Open source, tray-resident. No skins, no subscriptions. Just a floating capsule 
 ## Features
 
 ### 🎤 Voice Input
-- Press a hotkey to start recording, press again (or release) to stop — speech is transcribed and injected at the cursor in real time
-- **Streaming injection**: LLM refinement results appear character by character (typewriter effect) as they're generated
+- Press a hotkey to start recording, press again (or release) to stop — speech is transcribed and injected at the cursor
+- Streaming ASR provides real-time text during recording (both local and cloud engines)
 - Two record modes: **Toggle** (press to start, press again to stop) and **Hold** (hold to record, release to stop)
 
 ### 🌐 Translation
@@ -56,17 +57,20 @@ Open source, tray-resident. No skins, no subscriptions. Just a floating capsule 
   - **Light**: Punctuation + typo fixes, keeps your wording
   - **Balanced** (default): Removes filler words, corrects mistakes, preserves meaning
   - **Structured**: Conversational → structured, with bullet points and formatting
+- Full refined text injected at once to avoid partial text residue on failure
 
 ### 📖 Dictionary Correction
 - Custom correction pairs with fuzzy pinyin matching and spelling fixes
-- Built-in corrections for common tech terms and number formats
+- 150+ built-in corrections for common tech terms and number formats
 
 ### 📊 Stats & History
-- Automatically logs every voice session — searchable and reusable
+- Automatically logs every voice session — searchable, copyable, with visual feedback on copy
+- Dashboard shows today's stats, all-time totals, and a 7-day trend chart
 
 ### 🔄 Auto-Update
 - GitHub Releases based, auto-checks on startup
 - User-triggered download + install-and-restart
+- User data automatically backed up and restored across updates
 
 ### 🌍 5-Language UI
 - 简体中文 / 繁體中文 / English / 日本語 / 한국어
@@ -104,9 +108,18 @@ Download the latest installer from [Releases](https://github.com/shaoxin12/tingm
 
 **Requirements**: Windows x64
 
-On first launch, the onboarding wizard guides you through:
-1. **Local engine**: Auto-downloads the model (~230MB, HuggingFace mirrors), then works entirely offline
-2. **Cloud engine**: Requires API key configuration in Settings, offers higher accuracy
+### First Launch — Onboarding Wizard
+
+On first launch, a 4-step onboarding wizard guides you through setup:
+
+1. **Welcome** — Overview of core features
+2. **Hotkeys** — Confirm default voice and translate hotkeys
+3. **Engine** — Choose local (offline & free) or cloud (high accuracy, requires internet)
+4. **Configure** —
+   - **Local mode**: Download the voice model (~230MB), ready to use offline
+   - **Cloud mode**: Select ASR & LLM providers and enter API keys, with connection test
+
+All settings can be changed later in the Settings window.
 
 **Data storage**:
 - Settings & stats: `%APPDATA%/TingMo/data/`
@@ -132,7 +145,7 @@ On first launch, the onboarding wizard guides you through:
 | 🔴 Red | Recording |
 | 🔵 Blue | Recognizing |
 
-Right-click the tray icon for quick actions: switch Local/API, Toggle/Hold mode, mute, settings, quit.
+Right-click the tray icon for quick actions: switch Local/Cloud, Toggle/Hold mode, mute, settings, quit.
 
 ---
 
@@ -178,7 +191,7 @@ Right-click the tray icon for quick actions: switch Local/API, Toggle/Hold mode,
 
 **State machine**: `IDLE → RECORDING → RECOGNIZING → REFINING → SUCCESS → IDLE`
 
-- 15-second watchdog: stuck RECOGNIZING auto-resets to IDLE
+- 15-second watchdog: all paths entering RECOGNIZING are protected, auto-reset on timeout
 - Any non-IDLE state + hotkey press = force reset
 
 ---
@@ -201,11 +214,27 @@ npm run build
 # Package installer
 npm run electron:build
 
-# Release patch version
-npm run release:patch
-
 # Run tests
 npm run test:unit
+```
+
+### Release Checklist
+
+`electron-builder` only generates the installer — it does **not** upload `latest.yml` to GitHub Releases automatically. `electron-updater` reads `latest.yml` to detect new versions. Missing this file means users won't see updates.
+
+```bash
+# 1. Bump version in package.json
+
+# 2. Build the installer
+npm run electron:build
+
+# 3. Create GitHub Release with ALL files (all three are required)
+gh release create v<version> \
+  release/TingMo-Setup-<version>.exe \
+  release/TingMo-Setup-<version>.exe.blockmap \
+  release/latest.yml \
+  --title "TingMo V<version>" \
+  --notes "<release notes>"
 ```
 
 ### Known Limitations
@@ -214,6 +243,7 @@ npm run test:unit
 - API keys stored as plaintext in local JSON file
 - Translate hotkey set to a standalone key blocks that key system-wide (e.g., Insert)
 - Voice hotkey only supports modifier keys (Shift, Ctrl, Alt)
+- Transparent floating window disables box-shadow (causes gray halo on DWM), use border instead
 
 ---
 

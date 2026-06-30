@@ -16,6 +16,7 @@
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" />
   <img src="https://img.shields.io/badge/license-MIT-green" />
   <img src="https://img.shields.io/badge/vibe%20coding-🤖-purple" />
+  <img src="https://img.shields.io/badge/version-0.4.2-orange" />
 </p>
 
 ---
@@ -34,8 +35,8 @@
 
 ### 🎤 语音输入
 - 按热键说话，再按停止，语音实时转文字注入光标
-- 支持**流式注入**：LLM 润色结果逐字输出（打字机效果），边说边出
 - 两种按键模式：**按下说话**（Toggle，按一下开始/再按停止）和**按住说话**（Hold，按住录音松手停止）
+- 录音期间流式 ASR 实时出字（本地/云端均支持）
 
 ### 🌐 翻译模式
 - 独立翻译热键（默认 右 Shift + 右 Alt）
@@ -56,17 +57,20 @@
   - **轻量**：补标点、改错字，不动措辞
   - **均衡**（默认）：去口癖、纠错、补标点、保留原意
   - **结构化**：口语转书面，分行分点整理
+- 润色完成后一次性注入，避免中断时残留部分文本
 
 ### 📖 词典纠错
 - 自定义纠错词对，支持拼音模糊匹配和英文拼写修正
-- 内置常见术语自动纠正（技术专有名词、数字格式等）
+- 内置 150+ 条常见术语自动纠正（技术专有名词、数字格式等）
 
 ### 📊 统计与历史
-- 自动记录每次语音输入，支持搜索和复用
+- 自动记录每次语音输入，首页展示今日/累计统计和 7 天趋势图
+- 历史记录支持搜索、复制，复制按钮有点击反馈
 
 ### 🔄 自动更新
 - 基于 GitHub Releases，启动后自动检查
 - 用户控制下载 + 安装并重启
+- 更新过程自动备份并恢复用户数据，不会丢失设置
 
 ### 🌍 5 语言界面
 - 简体中文 / 繁體中文 / English / 日本語 / 한국어
@@ -104,9 +108,18 @@
 
 **系统要求**：Windows x64
 
-首次启动弹出引导向导：
-1. **本地引擎**：自动下载模型（~230MB，HuggingFace 镜像），下载完即用，完全离线
-2. **云端引擎**：需在设置中配置 ASR / LLM API Key，识别更精准
+### 首次启动 — 引导向导
+
+首次启动会弹出引导向导，4 步完成初始配置：
+
+1. **欢迎** — 了解基本功能
+2. **快捷键** — 确认语音输入和翻译模式的默认热键
+3. **选择引擎** — 本地引擎（离线免费）或云端引擎（高精度需联网）
+4. **配置引擎** —
+   - **本地模式**：下载语音模型（~230MB），下载完成后即可离线使用
+   - **云端模式**：选择 ASR 和 LLM 服务商并填写 API Key，支持连接测试
+
+引导过程中不可跳过，确保完成基础配置。所有设置之后都可在设置界面中修改。
 
 **数据存储**：
 - 配置和统计：`%APPDATA%/TingMo/data/`
@@ -132,7 +145,7 @@
 | 🔴 红色 | 录音中 |
 | 🔵 蓝色 | 识别中 |
 
-右键托盘图标弹出菜单：切换本地/API、按下/按住、录音静音、设置、退出。
+右键托盘图标弹出菜单：切换本地/云端、按下/按住、录音静音、设置、退出。
 
 ---
 
@@ -178,7 +191,7 @@
 
 **状态机**：`IDLE → RECORDING → RECOGNIZING → REFINING → SUCCESS → IDLE`
 
-- 15 秒看门狗：卡在 RECOGNIZING 时自动重置
+- 15 秒看门狗：所有进入 RECOGNIZING 的路径均受保护，超时自动重置
 - 任意非 IDLE 状态按热键强制重置到 IDLE
 
 ---
@@ -201,11 +214,27 @@ npm run build
 # 打包安装包
 npm run electron:build
 
-# 发布补丁版本
-npm run release:patch
-
 # 运行测试
 npm run test:unit
+```
+
+### 发版流程
+
+`electron-builder` 只生成安装包，**不会自动上传 `latest.yml` 到 GitHub Release**。`electron-updater` 靠读取 `latest.yml` 判断更新，漏传会导致已安装用户检查不到新版本。
+
+```bash
+# 1. 更新版本号（package.json）
+
+# 2. 构建安装包
+npm run electron:build
+
+# 3. 创建 GitHub Release 并上传全部文件（缺一不可）
+gh release create v<version> \
+  release/TingMo-Setup-<version>.exe \
+  release/TingMo-Setup-<version>.exe.blockmap \
+  release/latest.yml \
+  --title "TingMo V<version>" \
+  --notes "<release notes>"
 ```
 
 ### 已知限制
@@ -214,6 +243,7 @@ npm run test:unit
 - API Key 明文存储于本地 JSON 文件
 - 翻译热键设为独立键时该键被全局拦截（如 Insert 不再触发系统功能）
 - 录音热键仅支持修饰键（左/右 Shift、Ctrl、Alt）
+- 透明浮窗禁用 box-shadow（会产生灰色光晕），用 border 替代
 
 ---
 
