@@ -51,6 +51,29 @@ npm run release:minor  # npm version minor + electron:build
 npm run test:unit      # hotkey-events 单元测试
 ```
 
+### 发版流程（重要）
+
+`electron-builder` 只会生成安装包，**不会自动上传 `latest.yml` 到 GitHub Release**。而 `electron-updater` 靠读取 `latest.yml` 判断更新。漏传会导致已安装用户检查不到新版本。
+
+```bash
+# 1. 更新版本号
+# 手动改 package.json version，或 npm version patch/minor
+
+# 2. 构建安装包（生成 latest.yml 在 release/ 目录）
+npm run electron:build
+
+# 3. 创建 GitHub Release 并上传全部文件
+gh release create v<version> \
+  release/TingMo-Setup-<version>.exe \
+  release/TingMo-Setup-<version>.exe.blockmap \
+  release/latest.yml \
+  --title "TingMo V<version>" \
+  --notes "<release notes>"
+
+# 4. 可选：直接用 electron-builder 发布（需 GH_TOKEN 环境变量）
+# GH_TOKEN=xxx npx electron-builder --publish always
+```
+
 **开发环境**：Vite dev server `localhost:5173`，Electron 加载 `localhost:5173/#/`（浮窗）/ `#/settings` / `#/onboarding`。`scripts/dev.mjs` 用 chokidar 监听 `electron/**/*.ts`，自动 esbuild + 重启 Electron。
 
 ## 架构
