@@ -52,24 +52,17 @@ Open source, tray-resident. No skins, no subscriptions. Just a floating capsule 
 | **Cloud · Alibaba** | Fun-ASR / Qwen-ASR | WebSocket streaming + HTTP async fallback, DashScope platform |
 
 ### ✨ AI Polish (LLM Refinement)
-- Optional post-ASR refinement using LLMs
-- **Three polish modes**:
-  - **Light**: Punctuation + obvious typo fixes only. Does not change wording.
-  - **Balanced** (default): Remove filler words, correct mistakes, add punctuation, preserve original meaning.
-  - **Structured**: Conversational-to-written conversion, forced bullet points and structured formatting.
-- Short text (≤5 characters) bypasses LLM entirely — injected raw
+- Optional post-ASR refinement with **three modes**:
+  - **Light**: Punctuation + typo fixes, keeps your wording
+  - **Balanced** (default): Removes filler words, corrects mistakes, preserves meaning
+  - **Structured**: Conversational → structured, with bullet points and formatting
 
 ### 📖 Dictionary Correction
-- Custom word pairs (wrong → correct) with three-layer fuzzy matching:
-  1. Exact skip (correct term already present)
-  2. Pinyin matching (Chinese homophone errors, e.g. "跟目录" → "根目录")
-  3. Levenshtein distance (English spelling variants)
-- Built-in 150+ common term corrections (tech vocabulary, Chinese digits → Arabic, letter merging, date normalization)
+- Custom correction pairs with fuzzy pinyin matching and spelling fixes
+- Built-in corrections for common tech terms and number formats
 
 ### 📊 Stats & History
-- Cumulative recording duration, character count, session count — keeps growing indefinitely
-- All voice entries retained permanently, with search, copy, and re-injection support
-- Daily statistics preserved long-term; home tab shows a 7-day trend chart + today's counts
+- Automatically logs every voice session — searchable and reusable
 
 ### 🔄 Auto-Update
 - GitHub Releases based, auto-checks on startup
