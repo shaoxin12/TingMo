@@ -8,6 +8,7 @@ import { HomePanel } from './HomePanel';
 import { DictionaryPanel } from './DictionaryPanel';
 import { ModelPanel } from './ModelPanel';
 import { UpdatePanel } from './UpdatePanel';
+import pkg from '../../../package.json';
 import { MicDevicePicker } from './MicDevicePicker';
 
 type Tab = 'home' | 'dictionary' | 'model' | 'settings';
@@ -195,7 +196,7 @@ export const SettingsWindow: React.FC = () => {
             ))}
           </div>
         </div>
-        <div className="nb-sidebar-bottom"><div className="nb-sidebar-ver">V0.4.1</div></div>
+        <div className="nb-sidebar-bottom"><div className="nb-sidebar-ver">V{pkg.version}</div></div>
       </nav>
 
       <main className="nb-main">

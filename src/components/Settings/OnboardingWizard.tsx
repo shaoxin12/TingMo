@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '../../i18n/context';
 import { useSettingsStore } from '../../store/settings';
 import { useModelStore } from '../../store/model';
+import { CloudConfigPanel } from './CloudConfigPanel';
 
 interface Props {
   onComplete: () => void;
@@ -150,20 +151,13 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         </div>
       )}
 
-      {/* Step 3: Cloud — info + link to Settings */}
+      {/* Step 3: Cloud — configure providers & API keys */}
       {step === 3 && isCloud && (
-        <div style={{ maxWidth: 400 }}>
-          <div style={{
-            background: '#f7f7f7', borderRadius: 10, padding: '24px 28px',
-            textAlign: 'left', lineHeight: 1.7,
-          }}>
-            <p style={{ fontSize: 14, color: '#333', margin: '0 0 12px' }}>
-              {stepDescs[3]}
-            </p>
-            <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-              {t('onboarding.cloudReadyHint')}
-            </p>
-          </div>
+        <div style={{ maxWidth: 420, width: '100%' }}>
+          <p style={{ fontSize: 14, color: '#666', marginBottom: 20, lineHeight: 1.6 }}>
+            {t('onboarding.cloudReadyDesc')}
+          </p>
+          <CloudConfigPanel compact />
         </div>
       )}
 
