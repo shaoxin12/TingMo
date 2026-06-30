@@ -48,7 +48,9 @@ export const ModelPanel: React.FC = () => {
       {status === 'ready' ? (
         <div className="nb-row">
           <span className="nb-label">{t('model.ready')}</span>
-          <span className="nb-value" style={{ fontSize: 11, fontFamily: 'monospace', opacity: 0.6 }}>
+          <span className="nb-value" style={{ fontSize: 11, fontFamily: 'monospace', opacity: 0.6, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}
+            onClick={() => window.tingmo?.openFolder(modelPath)}
+            title={t('model.openFolder')}>
             {modelPath}
           </span>
         </div>

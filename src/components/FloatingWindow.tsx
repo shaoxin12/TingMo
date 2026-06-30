@@ -278,6 +278,9 @@ export const FloatingWindow: React.FC = () => {
               polishMode: polishMode || 'balanced',
               preAsrText: preAsrText || undefined,
             });
+          } else {
+            // No audio captured (e.g. hold-mode quick tap) — reset state
+            window.tingmo?.cancelRecording();
           }
         })();
       } else if (asrProvider === 'local') {
@@ -300,6 +303,9 @@ export const FloatingWindow: React.FC = () => {
               dictionary: useDictionary ? dictionary : [],
               preAsrText: preAsrText || undefined,
             });
+          } else {
+            // No audio captured (e.g. hold-mode quick tap) — reset state
+            window.tingmo?.cancelRecording();
           }
         })();
       } else {

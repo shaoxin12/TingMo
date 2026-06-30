@@ -32,6 +32,9 @@ const D: Record<string, LocaleMap> = {
   'settings.voiceMode':          { 'zh-CN': '语音模式', 'zh-TW': '語音模式', en: 'Voice mode',     ja: '音声モード',  ko: '음성 모드' },
   'settings.voiceMode.local':    { 'zh-CN': '本地',     'zh-TW': '本地',     en: 'Local',          ja: 'ローカル',     ko: '로컬' },
   'settings.voiceMode.cloud':    { 'zh-CN': 'API',      'zh-TW': 'API',      en: 'API',            ja: 'API',          ko: 'API' },
+  'settings.recordMode':         { 'zh-CN': '按键模式', 'zh-TW': '按鍵模式', en: 'Press mode',    ja: '押下モード',  ko: '누름 모드' },
+  'settings.recordMode.toggle':  { 'zh-CN': '按下说话', 'zh-TW': '按下說話', en: 'Toggle',        ja: 'トグル',      ko: '토글' },
+  'settings.recordMode.hold':    { 'zh-CN': '按住说话', 'zh-TW': '按住說話', en: 'Hold',          ja: '長押し',      ko: '길게 누르기' },
   'settings.recognitionLanguage':{ 'zh-CN': '识别语言', 'zh-TW': '識別語言', en: 'Language',        ja: '認識言語',     ko: '인식 언어' },
   'settings.language.zh':        { 'zh-CN': '中文',     'zh-TW': '中文',     en: 'Chinese',        ja: '中国語',       ko: '중국어' },
   'settings.language.en':        { 'zh-CN': '英文',     'zh-TW': '英文',     en: 'English',        ja: '英語',         ko: '영어' },
@@ -90,6 +93,7 @@ const D: Record<string, LocaleMap> = {
   'model.downloading':      { 'zh-CN': '下载中',       'zh-TW': '下載中',       en: 'Downloading',         ja: 'ダウンロード中',       ko: '다운로드 중' },
   'model.extracting':       { 'zh-CN': '解压中',       'zh-TW': '解壓中',       en: 'Extracting',          ja: '展開中',               ko: '압축 해제 중' },
   'model.ready':            { 'zh-CN': '模型就绪',     'zh-TW': '模型就緒',     en: 'Model ready',         ja: 'モデル準備完了',       ko: '모델 준비 완료' },
+  'model.openFolder':       { 'zh-CN': '点击在资源管理器中打开模型文件夹', 'zh-TW': '點擊在檔案總管中開啟模型資料夾', en: 'Click to open model folder in Explorer', ja: 'クリックしてモデルフォルダを開く', ko: '클릭하여 모델 폴더 열기' },
   'model.error':            { 'zh-CN': '下载失败',     'zh-TW': '下載失敗',     en: 'Download failed',     ja: 'ダウンロード失敗',     ko: '다운로드 실패' },
   'model.retry':            { 'zh-CN': '重试',         'zh-TW': '重試',         en: 'Retry',               ja: '再試行',               ko: '재시도' },
   'model.checking':         { 'zh-CN': '检查中...',    'zh-TW': '檢查中...',    en: 'Checking...',         ja: '確認中...',            ko: '확인 중...' },
@@ -177,6 +181,9 @@ const D: Record<string, LocaleMap> = {
   'onboarding.start':            { 'zh-CN': '开始使用', 'zh-TW': '開始使用', en: 'Get started', ja: '始める', ko: '시작하기' },
   'onboarding.modelTitle':      { 'zh-CN': '下载语音模型', 'zh-TW': '下載語音模型', en: 'Download voice model', ja: '音声モデルのダウンロード', ko: '음성 모델 다운로드' },
   'onboarding.modelDesc':       { 'zh-CN': '本地引擎需要一个语音模型（约 230 MB）。你可以现在下载，也可以稍后在设置中下载。', 'zh-TW': '本地引擎需要一個語音模型（約 230 MB）。你可以現在下載，也可以稍後在設定中下載。', en: 'The local engine requires a voice model (~230 MB). You can download it now or later in Settings.', ja: 'ローカルエンジンには音声モデル（約230MB）が必要です。今すぐダウンロードするか、後で設定からダウンロードできます。', ko: '로컬 엔진에는 음성 모델(약 230MB)이 필요합니다. 지금 다운로드하거나 나중에 설정에서 할 수 있습니다.' },
+  'onboarding.apiKeyTitle':     { 'zh-CN': '配置 API Key', 'zh-TW': '配置 API Key', en: 'Configure API Keys', ja: 'APIキーを設定', ko: 'API 키 설정' },
+  'onboarding.apiKeyDesc':      { 'zh-CN': '云端引擎需要 API Key。你可以稍后在设置中修改。', 'zh-TW': '雲端引擎需要 API Key。你可以稍後在設定中修改。', en: 'Cloud engine requires API keys. You can change them later in Settings.', ja: 'クラウドエンジンにはAPIキーが必要です。後で設定から変更できます。', ko: '클라우드 엔진에는 API 키가 필요합니다. 나중에 설정에서 변경할 수 있습니다.' },
+  'onboarding.apiKeyHint':      { 'zh-CN': '至少填写一个 Key 即可开始使用。', 'zh-TW': '至少填寫一個 Key 即可開始使用。', en: 'Fill in at least one key to get started.', ja: '少なくとも1つのキーを入力すれば開始できます。', ko: '최소 하나의 키를 입력하면 시작할 수 있습니다.' },
 
   // ── Overview ─────────────────────────────────────────
   'overview.loading':       { 'zh-CN': '加载中...',  'zh-TW': '載入中...',  en: 'Loading...',           ja: '読み込み中...',      ko: '로딩 중...' },

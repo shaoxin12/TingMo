@@ -5,18 +5,11 @@ import { FloatingWindow } from './components/FloatingWindow';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SettingsWindow } from './components/Settings/SettingsWindow';
 import { OnboardingWizard } from './components/Settings/OnboardingWizard';
-import { TrayPopup } from './components/TrayPopup';
-
 const AppInner: React.FC = () => {
   const hash = window.location.hash;
   const isSettings = hash.startsWith('#/settings');
   const isOnboarding = hash === '#/onboarding';
-  const isTrayPopup = hash === '#/tray-popup';
   const [onboardDone, setOnboardDone] = useState(false);
-
-  if (isTrayPopup) {
-    return <TrayPopup />;
-  }
 
   if (isOnboarding && !onboardDone) {
     return (

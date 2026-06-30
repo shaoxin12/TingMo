@@ -12,26 +12,30 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
   const [step, setStep] = useState(0);
   const asrProvider = useSettingsStore((s) => s.asrProvider);
   const setAsrProvider = useSettingsStore((s) => s.setAsrProvider);
+  const asrCloudApiKey = useSettingsStore((s) => s.asrCloudApiKey);
+  const setAsrCloudApiKey = useSettingsStore((s) => s.setAsrCloudApiKey);
+  const llmApiKey = useSettingsStore((s) => s.llmApiKey);
+  const setLlmApiKey = useSettingsStore((s) => s.setLlmApiKey);
   const modelStatus = useModelStore((s) => s.status);
   const modelProgress = useModelStore((s) => s.progress);
   const setModelProgress = useModelStore((s) => s.setProgress);
   const setModelError = useModelStore((s) => s.setError);
   const setModelReady = useModelStore((s) => s.setReady);
 
-  const hasModelStep = asrProvider === 'local';
-  const maxStep = hasModelStep ? 3 : 2;
+  // Both modes have 4 steps: Welcome → Hotkey → Mode → Configure (API keys or model download)
+  const maxStep = 3;
 
   const stepTitles = [
     t('onboarding.welcomeTitle'),
     t('onboarding.hotkeyTitle'),
     t('onboarding.modeTitle'),
-    t('onboarding.modelTitle'),
+    asrProvider === 'cloud' ? t('onboarding.apiKeyTitle') : t('onboarding.modelTitle'),
   ];
   const stepDescs = [
     t('onboarding.welcomeDesc'),
     t('onboarding.hotkeyDesc'),
     '',
-    t('onboarding.modelDesc'),
+    asrProvider === 'cloud' ? t('onboarding.apiKeyDesc') : t('onboarding.modelDesc'),
   ];
 
   useEffect(() => {
@@ -132,7 +136,50 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         </div>
       )}
 
-      {step === 3 && (
+      {step === 3 && asrProvider === 'cloud' && (
+        <div style={{ maxWidth: 400, width: '100%' }}>
+          <p style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.6 }}>
+            {stepDescs[3]}
+          </p>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                {t('model.asrCloudApiKey')}
+              </label>
+              <input
+                type="password"
+                value={asrCloudApiKey}
+                onChange={(e) => setAsrCloudApiKey(e.target.value)}
+                placeholder={t('model.asrCloudApiKeyPlaceholder')}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ddd',
+                  fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                {t('settings.apiKey')}
+              </label>
+              <input
+                type="password"
+                value={llmApiKey}
+                onChange={(e) => setLlmApiKey(e.target.value)}
+                placeholder={t('settings.apiKeyPlaceholder')}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ddd',
+                  fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <p style={{ fontSize: 11, color: '#999', marginTop: 8 }}>
+              {t('onboarding.apiKeyHint')}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && asrProvider !== 'cloud' && (
         <div style={{ maxWidth: 400 }}>
           <p style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.6 }}>
             {stepDescs[3]}

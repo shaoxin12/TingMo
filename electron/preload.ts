@@ -100,7 +100,7 @@ const api = {
   loadAppSettings: () => ipcRenderer.invoke('settings:load-app-settings') as Promise<Record<string, unknown>>,
   saveAppSettings: (settings: Record<string, unknown>) => ipcRenderer.invoke('settings:save-app-settings', settings),
   setMuteOnRecord: (enabled: boolean) => ipcRenderer.invoke('settings:set-mute-on-record', enabled),
-  onSettingsChanged: (callback: (data: { muteOnRecord?: boolean; recordMode?: string }) => void) => {
+  onSettingsChanged: (callback: (data: Record<string, unknown>) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('settings:changed', handler);
     return () => ipcRenderer.removeListener('settings:changed', handler);
@@ -146,10 +146,12 @@ const api = {
   setAsrCloudApiKey: (key: string) => ipcRenderer.invoke('settings:set-asr-cloud-api-key', key),
   getAsrCloudApiKey: () => ipcRenderer.invoke('settings:get-asr-cloud-api-key') as Promise<string>,
 
-  // Tray popup
-  closeTrayPopup: () => ipcRenderer.invoke('tray-popup:close'),
+  // Tray
   quitApp: () => ipcRenderer.invoke('app:quit'),
   setRecordMode: (mode: string) => ipcRenderer.invoke('settings:set-record-mode', mode),
+
+  // Open the folder containing a file in Explorer
+  openFolder: (filePath: string) => ipcRenderer.invoke('shell:open-folder', filePath),
 };
 
 contextBridge.exposeInMainWorld('tingmo', api);

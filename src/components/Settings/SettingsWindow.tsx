@@ -35,6 +35,7 @@ export const SettingsWindow: React.FC = () => {
   const { t } = useI18n();
   const {
     asrProvider, setAsrProvider,
+    recordMode, setRecordMode,
     hotkey, setHotkey, resetHotkey,
     translateHotkey, setTranslateHotkey, resetTranslateHotkey,
     launchAtStartup, setLaunchAtStartup,
@@ -131,15 +132,18 @@ export const SettingsWindow: React.FC = () => {
     window.tingmo?.setUiLanguage(uiLanguage);
   }, [uiLanguage]);
 
-  // Sync tray menu changes (mute-on-record, record mode) back to Zustand
+  // Sync tray menu changes back to Zustand (separate BrowserWindow from Settings)
   useEffect(() => {
-    return (window.tingmo as any)?.onSettingsChanged?.((data: { muteOnRecord?: boolean; recordMode?: string }) => {
+    return (window.tingmo as any)?.onSettingsChanged?.((data: Record<string, unknown>) => {
       if (typeof data.muteOnRecord === 'boolean') setMuteOnRecord(data.muteOnRecord);
       if (typeof data.recordMode === 'string') {
         // recordMode changes are handled by main process directly
       }
+      if (typeof data.asrProvider === 'string') {
+        setAsrProvider(data.asrProvider as 'local' | 'cloud');
+      }
     });
-  }, [setMuteOnRecord]);
+  }, [setMuteOnRecord, setAsrProvider]);
 
   // Maximize state for window control button
   const [isMaximized, setIsMaximized] = useState(false);
@@ -194,7 +198,7 @@ export const SettingsWindow: React.FC = () => {
             ))}
           </div>
         </div>
-        <div className="nb-sidebar-bottom"><div className="nb-sidebar-ver">V0.4.0</div></div>
+        <div className="nb-sidebar-bottom"><div className="nb-sidebar-ver">V0.4.1</div></div>
       </nav>
 
       <main className="nb-main">
@@ -347,6 +351,14 @@ export const SettingsWindow: React.FC = () => {
                 <div className="nb-row">
                   <span className="nb-label">{t('settings.micDevice')}</span>
                   <MicDevicePicker value={selectedMicDeviceId} onChange={setSelectedMicDeviceId} />
+                </div>
+                <div className="nb-hr" />
+                <div className="nb-row">
+                  <span className="nb-label">{t('settings.recordMode')}</span>
+                  <div className="nb-segmented">
+                    <button className={`nb-seg ${recordMode === 'toggle' ? 'active' : ''}`} onClick={() => setRecordMode('toggle')}>{t('settings.recordMode.toggle')}</button>
+                    <button className={`nb-seg ${recordMode === 'hold' ? 'active' : ''}`} onClick={() => setRecordMode('hold')}>{t('settings.recordMode.hold')}</button>
+                  </div>
                 </div>
                 <div className="nb-hr" />
                 <div className="nb-row">

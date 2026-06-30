@@ -801,6 +801,11 @@ if (app) {
     if (typeof settings.launchAtStartup === 'boolean') {
       app.setLoginItemSettings({ openAtLogin: settings.launchAtStartup as boolean });
     }
+    // Notify settings window so its Zustand store stays in sync
+    // (tray popup and settings are separate BrowserWindows with separate stores)
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.webContents.send('settings:changed', settings);
+    }
   });
 
   ipcMain.handle('stats:get', () => loadStats());
@@ -1517,20 +1522,48 @@ if (app) {
 
   const initLocale = app.getLocale()?.startsWith('zh') ? 'zh-CN' : 'en';
   currentLocale = initLocale;
-  tray = createTray(initLocale, createSettingsWindow, recordMode, (mode) => {
-    recordMode = mode;
-    const filepath = getDataPath('settings.json');
-    const existing = readJSON<any>(filepath, {});
-    existing.recordMode = mode;
-    writeJSON(filepath, existing);
-  }, muteOnRecord, (enabled) => {
-    muteOnRecord = enabled;
-    const filepath = getDataPath('settings.json');
-    const existing = readJSON<any>(filepath, {});
-    existing.muteOnRecord = enabled;
-    writeJSON(filepath, existing);
-    sendToRenderer('settings:changed', { muteOnRecord: enabled });
-  });
+  tray = createTray(
+    initLocale,
+    createSettingsWindow,
+    // ASR provider — read fresh from disk (menu rebuilds each right-click)
+    () => (readJSON<any>(getDataPath('settings.json'), {}).asrProvider || 'local') as 'local' | 'cloud',
+    (p) => {
+      const filepath = getDataPath('settings.json');
+      const existing = readJSON<any>(filepath, {});
+      existing.asrProvider = p;
+      writeJSON(filepath, existing);
+      initRecognition();
+      // Notify settings window to sync
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('settings:changed', { asrProvider: p });
+      }
+    },
+    // Record mode
+    () => recordMode,
+    (mode) => {
+      recordMode = mode;
+      const filepath = getDataPath('settings.json');
+      const existing = readJSON<any>(filepath, {});
+      existing.recordMode = mode;
+      writeJSON(filepath, existing);
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('settings:changed', { recordMode: mode });
+      }
+    },
+    // Mute on record
+    () => muteOnRecord,
+    (enabled) => {
+      muteOnRecord = enabled;
+      const filepath = getDataPath('settings.json');
+      const existing = readJSON<any>(filepath, {});
+      existing.muteOnRecord = enabled;
+      writeJSON(filepath, existing);
+      sendToRenderer('settings:changed', { muteOnRecord: enabled });
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('settings:changed', { muteOnRecord: enabled });
+      }
+    },
+  );
   // Restore saved hotkey from settings, or default to VK_RMENU (Right Alt)
   const savedHotkeyName = readJSON<any>(getDataPath('settings.json'), {}).hotkey || '';
   const savedVk = savedHotkeyName ? VK_NAME_MAP[savedHotkeyName] : undefined;
@@ -1538,11 +1571,7 @@ if (app) {
   startHotkey(recordingHotkeyVK);
   console.log('[Main] Hotkey initialized:', savedHotkeyName || '右 Alt', 'VK =', recordingHotkeyVK);
 
-  // ── Tray popup IPC ────────────────────────────────────
-  const { closeTrayPopup } = require('./tray');
-  ipcMain.handle('tray-popup:close', () => {
-    closeTrayPopup();
-  });
+  // ── App quit IPC ────────────────────────────────────
   ipcMain.handle('app:quit', () => {
     app.quit();
   });
@@ -1553,11 +1582,17 @@ if (app) {
     writeJSON(getDataPath('settings.json'), settings);
   });
 
-  // Show onboarding on first launch
+  // Open the folder containing a file in Explorer (used by ModelPanel path click)
+  ipcMain.handle('shell:open-folder', (_event, filePath: string) => {
+    const { shell } = require('electron');
+    const path = require('path');
+    shell.openPath(path.dirname(filePath));
+  });
+
+  // Always show settings window on launch (user expectation when double-clicking desktop icon)
   const settingsPath = getDataPath('settings.json');
-  if (!require('fs').existsSync(settingsPath)) {
-    createSettingsWindow(true);
-  }
+  const isFirstLaunch = !require('fs').existsSync(settingsPath);
+  createSettingsWindow(isFirstLaunch);
 });
 
 if (app) {

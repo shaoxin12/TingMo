@@ -1,10 +1,11 @@
-import { Tray, BrowserWindow, nativeImage, NativeImage, app, screen } from 'electron';
+import { Tray, Menu, nativeImage, NativeImage } from 'electron';
 import { join } from 'path';
 import { trayT } from './tray-i18n';
 
 type Locale = string;
 
-// Load base icon from assets (also used as app icon)
+// ── Tray icon creation ────────────────────────────────────
+
 const baseIconPath = join(__dirname, '../assets/icons/icon.png');
 let baseIcon: NativeImage;
 
@@ -17,7 +18,6 @@ function loadBaseIcon(): NativeImage {
 
 function createTrayIcon(state: 'default' | 'recording' | 'recognizing'): NativeImage {
   const img = loadBaseIcon().resize({ width: 32, height: 32, quality: 'best' });
-
   if (state === 'recording') return tintIcon(img, 255, 85, 85);
   if (state === 'recognizing') return tintIcon(img, 74, 144, 255);
   return img;
@@ -45,128 +45,80 @@ function tintIcon(icon: NativeImage, r: number, g: number, b: number): NativeIma
   return nativeImage.createFromBuffer(buf, { width: size, height: size });
 }
 
-// ── Tray popup window ─────────────────────────────────────
-
-const POPUP_WIDTH = 185;
-const POPUP_HEIGHT = 290;
-
-let popupWin: BrowserWindow | null = null;
-
-function getPopupPosition(tray: Tray): { x: number; y: number } {
-  const trayBounds = tray.getBounds();
-  const cursor = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(cursor);
-  const workArea = display.workArea;
-
-  // Horizontal: center on tray icon
-  let x = Math.round(trayBounds.x + trayBounds.width / 2 - POPUP_WIDTH / 2);
-  // Vertical: place above cursor, with small gap
-  let y = cursor.y - POPUP_HEIGHT - 8;
-
-  // Keep within screen bounds
-  if (x < workArea.x) x = workArea.x + 4;
-  if (x + POPUP_WIDTH > workArea.x + workArea.width) x = workArea.x + workArea.width - POPUP_WIDTH - 4;
-  // If not enough room above, place below
-  if (y < workArea.y) y = cursor.y + 16;
-
-  return { x, y };
-}
-
-function createPopupWindow(tray: Tray): BrowserWindow {
-  if (popupWin && !popupWin.isDestroyed()) {
-    popupWin.close();
-  }
-
-  const { x, y } = getPopupPosition(tray);
-
-  popupWin = new BrowserWindow({
-    width: POPUP_WIDTH,
-    height: POPUP_HEIGHT,
-    x,
-    y,
-    transparent: true,
-    frame: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: true,
-    hasShadow: true,
-    webPreferences: {
-      preload: join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-  });
-
-  popupWin.setBackgroundColor('#00000000');
-
-  if (process.env.NODE_ENV === 'development') {
-    popupWin.loadURL('http://localhost:5173/#/tray-popup');
-  } else {
-    popupWin.loadFile(join(__dirname, '../dist/index.html'), { hash: '/tray-popup' });
-  }
-
-  // Close on blur after a short grace period — prevents the Windows tray
-  // overflow panel dismiss from killing the popup immediately.
-  let blurTimer: ReturnType<typeof setTimeout> | null = null;
-  popupWin.on('blur', () => {
-    blurTimer = setTimeout(() => {
-      closePopup();
-    }, 150);
-  });
-  popupWin.on('focus', () => {
-    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
-  });
-
-  return popupWin;
-}
-
-function closePopup(): void {
-  if (popupWin && !popupWin.isDestroyed()) {
-    popupWin.close();
-  }
-  popupWin = null;
-}
-
-export function closeTrayPopup(): void {
-  closePopup();
-}
-
-// ── Public API ────────────────────────────────────────────
-
-let recordMode: 'toggle' | 'hold' = 'toggle';
-let onRecordModeChange: ((mode: 'toggle' | 'hold') => void) | null = null;
-let muteOnRecord = true;
-let onMuteOnRecordChange: ((enabled: boolean) => void) | null = null;
-
-function handleRecordModeChange(mode: 'toggle' | 'hold'): void {
-  recordMode = mode;
-  onRecordModeChange?.(mode);
-}
-function handleMuteOnRecordChange(enabled: boolean): void {
-  muteOnRecord = enabled;
-  onMuteOnRecordChange?.(enabled);
-}
+// ── Native context menu ───────────────────────────────────
 
 export function createTray(
   locale: Locale,
   openSettings: () => void,
-  initialRecordMode: 'toggle' | 'hold',
-  onRecordModeChangeCb: (mode: 'toggle' | 'hold') => void,
-  initialMuteOnRecord: boolean,
-  onMuteOnRecordChangeCb: (enabled: boolean) => void,
+  getAsrProvider: () => 'local' | 'cloud',
+  onAsrProviderChange: (p: 'local' | 'cloud') => void,
+  getRecordMode: () => 'toggle' | 'hold',
+  onRecordModeChange: (mode: 'toggle' | 'hold') => void,
+  getMuteOnRecord: () => boolean,
+  onMuteOnRecordChange: (enabled: boolean) => void,
 ): Tray {
-  recordMode = initialRecordMode;
-  onRecordModeChange = onRecordModeChangeCb;
-  muteOnRecord = initialMuteOnRecord;
-  onMuteOnRecordChange = onMuteOnRecordChangeCb;
   const icon = createTrayIcon('default');
   const tray = new Tray(icon);
   tray.setToolTip(trayT(locale, 'tray.tooltip'));
 
-  // Right-click → show styled popup
+  // Build the context menu fresh each right-click so checked/radio state is current
+  const buildMenu = (): Menu => {
+    const asrProvider = getAsrProvider();
+    const recordMode = getRecordMode();
+    const muteOnRecord = getMuteOnRecord();
+
+    return Menu.buildFromTemplate([
+      {
+        label: trayT(locale, 'tray.voiceMode.local'),
+        type: 'radio',
+        checked: asrProvider === 'local',
+        click: () => onAsrProviderChange('local'),
+      },
+      {
+        label: trayT(locale, 'tray.voiceMode.cloud'),
+        type: 'radio',
+        checked: asrProvider === 'cloud',
+        click: () => onAsrProviderChange('cloud'),
+      },
+      { type: 'separator' },
+      {
+        label: trayT(locale, 'tray.recordMode.toggle'),
+        type: 'radio',
+        checked: recordMode === 'toggle',
+        click: () => onRecordModeChange('toggle'),
+      },
+      {
+        label: trayT(locale, 'tray.recordMode.hold'),
+        type: 'radio',
+        checked: recordMode === 'hold',
+        click: () => onRecordModeChange('hold'),
+      },
+      { type: 'separator' },
+      {
+        label: trayT(locale, 'tray.muteOnRecord'),
+        type: 'checkbox',
+        checked: muteOnRecord,
+        click: (mi) => onMuteOnRecordChange(mi.checked),
+      },
+      { type: 'separator' },
+      {
+        label: trayT(locale, 'tray.settings'),
+        click: () => openSettings(),
+      },
+      { type: 'separator' },
+      {
+        label: trayT(locale, 'tray.quit'),
+        click: () => {
+          const { app } = require('electron');
+          app.quit();
+        },
+      },
+    ]);
+  };
+
+  // Right-click → native Windows context menu (OS handles position & dismissal)
   tray.on('right-click', () => {
-    createPopupWindow(tray);
+    tray.popUpContextMenu(buildMenu());
   });
 
   // Left-click → open settings

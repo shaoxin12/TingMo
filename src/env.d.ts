@@ -42,7 +42,7 @@ interface TingMoAPI {
   loadAppSettings: () => Promise<Record<string, unknown>>;
   saveAppSettings: (settings: Record<string, unknown>) => Promise<void>;
   setMuteOnRecord: (enabled: boolean) => Promise<void>;
-  onSettingsChanged: (cb: (data: { muteOnRecord?: boolean; recordMode?: string }) => void) => () => void;
+  onSettingsChanged: (cb: (data: Record<string, unknown>) => void) => () => void;
 
   // Model download
   onModelProgress: (cb: (data: { stage: string; percent: number; error?: string }) => void) => () => void;
@@ -66,10 +66,11 @@ interface TingMoAPI {
   maximizeWindow: () => void;
   closeWindow: () => void;
   onMaximizeChange: (cb: (maximized: boolean) => void) => () => void;
-  // Tray popup
-  closeTrayPopup: () => Promise<void>;
+  // Tray
   quitApp: () => Promise<void>;
   setRecordMode: (mode: string) => Promise<void>;
+  // File system
+  openFolder: (filePath: string) => Promise<void>;
 }
 
 declare global {
