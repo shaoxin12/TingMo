@@ -1487,6 +1487,9 @@ if (app) {
 
     autoUpdater.on('update-not-available', () => {
       console.log('[Updater] No update available');
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('update:not-available');
+      }
     });
 
     autoUpdater.on('download-progress', (progress) => {

@@ -35,6 +35,12 @@ export const UpdatePanel: React.FC = () => {
     });
     if (unsub3) unsubs.push(unsub3);
 
+    const unsub4 = window.tingmo?.onUpdateNotAvailable?.(() => {
+      setCheckState('ok');
+      setStatusMsg(t('update.upToDate'));
+    });
+    if (unsub4) unsubs.push(unsub4);
+
     return () => unsubs.forEach((fn) => fn());
   }, [t]);
 
@@ -100,7 +106,7 @@ export const UpdatePanel: React.FC = () => {
           <>
             {!showDownload && (
               <button className={btnClass} onClick={handleCheck} disabled={checkState === 'checking'}>
-                {checkState === 'checking' ? t('update.checking') : checkState === 'fail' ? '✗' : t('update.check')}
+                {checkState === 'checking' ? t('update.checking') : checkState === 'fail' ? '✗' : checkState === 'ok' ? '✓' : t('update.check')}
               </button>
             )}
             {showDownload && (

@@ -119,6 +119,11 @@ const api = {
     ipcRenderer.on('update:downloaded', handler);
     return () => ipcRenderer.removeListener('update:downloaded', handler);
   },
+  onUpdateNotAvailable: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('update:not-available', handler);
+    return () => ipcRenderer.removeListener('update:not-available', handler);
+  },
   // Window controls (frameless titlebar)
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),

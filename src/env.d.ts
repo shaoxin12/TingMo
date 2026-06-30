@@ -52,6 +52,7 @@ interface TingMoAPI {
   onUpdateAvailable: (cb: (data: { version: string }) => void) => () => void;
   onUpdateProgress: (cb: (data: { percent: number }) => void) => () => void;
   onUpdateDownloaded: (cb: () => void) => () => void;
+  onUpdateNotAvailable: (cb: () => void) => () => void;
   checkForUpdates: () => Promise<{ updateAvailable: boolean; version: string | null; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   installUpdate: () => Promise<void>;
