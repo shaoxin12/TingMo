@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useI18n } from '../../i18n/context';
 import pkg from '../../../package.json';
 
@@ -14,21 +14,35 @@ export const UpdatePanel: React.FC = () => {
   const [downloading, setDownloading] = useState(false);
   const [updateReady, setUpdateReady] = useState(false);
   const [downloadPercent, setDownloadPercent] = useState(0);
+  const mountedRef = useRef(true);
 
+  // Active check on mount — gives correct initial state regardless of auto-updater events
+  useEffect(() => {
+    mountedRef.current = true;
+    doCheck();
+    return () => { mountedRef.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Listen for real-time auto-updater events (background check, download progress, etc.)
   useEffect(() => {
     const unsubs: (() => void)[] = [];
 
     const unsub1 = window.tingmo?.onUpdateAvailable?.((data) => {
+      if (!mountedRef.current) return;
+      setCheckState('ok');
       setStatusMsg(t('update.available') + ' (V' + data.version + ')');
     });
     if (unsub1) unsubs.push(unsub1);
 
     const unsub2 = window.tingmo?.onUpdateProgress?.((data) => {
+      if (!mountedRef.current) return;
       setDownloadPercent(data.percent);
     });
     if (unsub2) unsubs.push(unsub2);
 
     const unsub3 = window.tingmo?.onUpdateDownloaded?.(() => {
+      if (!mountedRef.current) return;
       setDownloading(false);
       setUpdateReady(true);
       setStatusMsg('');
@@ -36,6 +50,7 @@ export const UpdatePanel: React.FC = () => {
     if (unsub3) unsubs.push(unsub3);
 
     const unsub4 = window.tingmo?.onUpdateNotAvailable?.(() => {
+      if (!mountedRef.current) return;
       setCheckState('ok');
       setStatusMsg(t('update.upToDate'));
     });
@@ -44,11 +59,12 @@ export const UpdatePanel: React.FC = () => {
     return () => unsubs.forEach((fn) => fn());
   }, [t]);
 
-  const handleCheck = async () => {
+  const doCheck = async () => {
     setCheckState('checking');
     setStatusMsg('');
     try {
       const result = await window.tingmo?.checkForUpdates();
+      if (!mountedRef.current) return;
       if (result?.updateAvailable) {
         setCheckState('ok');
         setStatusMsg(t('update.available') + ' (V' + result.version + ')');
@@ -57,6 +73,7 @@ export const UpdatePanel: React.FC = () => {
         setStatusMsg(t('update.upToDate'));
       }
     } catch {
+      if (!mountedRef.current) return;
       setCheckState('fail');
     }
   };
@@ -70,7 +87,6 @@ export const UpdatePanel: React.FC = () => {
         setCheckState('fail');
         setStatusMsg(t('update.error'));
       }
-      // On success, onUpdateDownloaded callback will handle state transition
     } catch {
       setDownloading(false);
       setCheckState('fail');
@@ -105,7 +121,7 @@ export const UpdatePanel: React.FC = () => {
         {!updateReady ? (
           <>
             {!showDownload && (
-              <button className={btnClass} onClick={handleCheck} disabled={checkState === 'checking'}>
+              <button className={btnClass} onClick={doCheck} disabled={checkState === 'checking'}>
                 {checkState === 'checking' ? t('update.checking') : checkState === 'fail' ? '✗' : checkState === 'ok' ? '✓' : t('update.check')}
               </button>
             )}
