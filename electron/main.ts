@@ -1539,12 +1539,6 @@ if (app) {
     }, 5000);
   }
 
-  // Init recognition and refinement in background
-  console.log('[Main] Starting initRecognition + initRefinement...');
-  initRecognition();
-  initRefinement();
-  console.log('[Main] initRecognition + initRefinement dispatched');
-
   // Load record mode and mute-on-record from persisted settings (one read)
   const loaded = loadAppSettings();
   recordMode = loaded.recordMode;
@@ -1644,6 +1638,13 @@ if (app) {
   const settingsPath = getDataPath('settings.json');
   const isFirstLaunch = !require('fs').existsSync(settingsPath);
   createSettingsWindow(isFirstLaunch);
+
+  // Init recognition AFTER settings window is created so model download
+  // progress events reach the onboarding wizard immediately.
+  console.log('[Main] Starting initRecognition + initRefinement...');
+  initRecognition();
+  initRefinement();
+  console.log('[Main] initRecognition + initRefinement dispatched');
 });
 
 if (app) {
